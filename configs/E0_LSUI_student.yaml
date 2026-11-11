@@ -1,0 +1,20 @@
+experiment: E0
+seed: 42
+device: cuda
+epochs: 100
+batch_size: 4
+crop_size: 256
+lr: 0.0002
+ssim_weight: 0.2
+kd_weight: 0.0
+student:
+  width: 24
+teacher:
+  mode: none
+clip: false
+data:
+  train: /home/user/luad_uie_prototype_20261031/data/LSUI/train.csv
+  val: /home/user/luad_uie_prototype_20261031/data/LSUI/val.csv
+  test: /home/user/luad_uie_prototype_20261031/data/LSUI/test.csv
+  utility_train: null
+  utility_eval: null

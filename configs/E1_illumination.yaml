@@ -1,0 +1,31 @@
+# All paths are resolved from the launch working directory; CSV image paths from CSV directory.
+experiment: E1
+view: illumination
+seed: 42
+device: cuda
+epochs: 100
+batch_size: 4
+crop_size: 256
+lr: 0.0002
+ssim_weight: 0.2
+kd_weight: 0.1
+student:
+  width: 24
+teacher:
+  mode: checkpoint
+  checkpoint: null  # Required for every real KD experiment
+  width: 48
+clip: false
+data:
+  train: data/train.csv
+  val: data/val.csv
+  test: data/test.csv
+  utility_train: data/utility_train.csv
+  utility_eval: data/utility_eval.csv
+utility:
+  interval: 10
+  virtual_interval: 100
+  eta: 0.001
+  lr: 0.001
+  warmup_steps: 100
+  threshold: 0.05  # E5 positive-cosine margin; E4 uses zero
