@@ -106,7 +106,6 @@ def train(config, output_dir, resume=None):
         start_epoch, step = checkpoint['epoch'] + 1, checkpoint['step']
         history = out/'epochs.jsonl'
         if history.exists():
-            import json
             for line in history.read_text(encoding='utf-8').splitlines():
                 if line.strip():
                     best = max(best, json.loads(line)['val']['psnr'])
