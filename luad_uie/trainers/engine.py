@@ -7,6 +7,7 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 import yaml
 
+from ..models.gradient_router import HeadGradientRouter
 from ..datasets import PairedDataset, read_manifest, validate_splits
 from ..models import Student, KnowledgeViews, Controller
 from ..models.teacher import build_teacher
@@ -87,6 +88,7 @@ def train(config, output_dir, resume=None):
     teacher = build_teacher(config['teacher'], device) if experiment != 'E0' else None
     views, rec_loss = KnowledgeViews().to(device), ReconstructionLoss(config.get('ssim_weight', .2)).to(device)
     dynamic = experiment in ('E4', 'E5')
+    router = HeadGradientRouter(experiment == 'RG-full').to(device) if experiment in ('RG-scale', 'RG-full') else None
     uc = config.get('utility', {})
     controller = Controller(student.feature_dim, threshold=uc.get('threshold', 0.) if experiment == 'E5' else 0.).to(device) if dynamic else None
     ctrl_optimizer = torch.optim.Adam(controller.parameters(), lr=uc.get('lr', 1e-3)) if dynamic else None
@@ -99,6 +101,8 @@ def train(config, output_dir, resume=None):
     if resume:
         checkpoint = torch.load(resume, map_location=device, weights_only=True)
         student.load_state_dict(checkpoint['student'])
+        if router is not None:
+            router.load_state_dict(checkpoint['router'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         if controller is not None and checkpoint.get('controller') is not None:
             controller.load_state_dict(checkpoint['controller'])
@@ -151,10 +155,13 @@ def train(config, output_dir, resume=None):
                 ds, ss = controller_inputs(x, prediction, features)
                 with torch.no_grad():
                     utility = controller(ds, ss)
-            weights = strategy_weights(experiment, x, utility, controller, config.get('view'))
+            per_view = views(prediction, teacher_output(x, target)) if experiment != 'E0' else x.new_zeros(x.shape[0], 3)
+            if router is not None:
+                weights, utility = router(prediction, features['spatial'], rec, per_view, step)
+            else:
+                weights = strategy_weights(experiment, x, utility, controller, config.get('view'))
             if dynamic and step < uc.get('warmup_steps', 100):
                 weights = torch.zeros_like(weights)
-            per_view = views(prediction, teacher_output(x, target)) if experiment != 'E0' else x.new_zeros(x.shape[0], 3)
             kd = (per_view*weights.detach()).sum(1).mean()
             loss = rec + config['kd_weight']*kd
             optimizer.zero_grad(set_to_none=True)
@@ -180,6 +187,8 @@ def train(config, output_dir, resume=None):
         state = {'student': student.state_dict(), 'optimizer': optimizer.state_dict(), 'epoch': epoch,
                  'step': step, 'config': config, 'controller': controller.state_dict() if controller else None,
                  'controller_optimizer': ctrl_optimizer.state_dict() if ctrl_optimizer else None}
+        if router is not None:
+            state['router'] = router.state_dict()
         torch.save(state, out/'last.pt')
         if scores['psnr'] > best:
             best = scores['psnr']

@@ -27,7 +27,7 @@ class Student(nn.Module):
         d = self.dec2(torch.cat([F.interpolate(c, size=b.shape[-2:], mode='bilinear', align_corners=False), b], 1))
         f = self.dec1(torch.cat([F.interpolate(d, size=a.shape[-2:], mode='bilinear', align_corners=False), a], 1))
         out = torch.sigmoid(self.head(f))
-        return (out, {"pooled": f.mean((2, 3))}) if return_features else out
+        return (out, {"pooled": f.mean((2, 3)), "spatial": f}) if return_features else out
 
     def utility_parameters(self):
         """Replacement backbones must expose a small reconstruction parameter subset."""

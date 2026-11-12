@@ -23,7 +23,7 @@ def seed_all(seed):
 def load_config(path):
     with open(path, encoding='utf-8') as f:
         config = yaml.safe_load(f)
-    if config['experiment'] not in ('E0', 'E1', 'E2', 'E3', 'E4', 'E5'):
+    if config['experiment'] not in ('E0', 'E1', 'E2', 'E3', 'E4', 'E5', 'RG-full', 'RG-scale'):
         raise ValueError('Unknown experiment')
     if config.get('clip', False):
         raise NotImplementedError('CLIP is intentionally excluded from MVP')
