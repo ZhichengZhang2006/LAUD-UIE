@@ -1,0 +1,91 @@
+{
+  "date": "2026-11-16",
+  "baseline": {
+    "psnr": 22.96713253716442,
+    "ssim": 0.8694891915700146,
+    "mse": 0.007705105596198048,
+    "latency_ms": 7.174729611115339,
+    "images": 428,
+    "teacher_mode_during_training": "none",
+    "manifest_sha256": "9e9450141d28a6a547a45f6e6f8422dc85739ad03b30587cad091e12fd0db673",
+    "student_only": true
+  },
+  "experiments": {
+    "E1_color": {
+      "summary": {
+        "psnr": 23.14288859055421,
+        "ssim": 0.8714656233787537,
+        "mse": 0.0074142372992083375,
+        "latency_ms": 7.646291479729464,
+        "images": 428,
+        "teacher_mode_during_training": "checkpoint",
+        "manifest_sha256": "9e9450141d28a6a547a45f6e6f8422dc85739ad03b30587cad091e12fd0db673",
+        "student_only": true,
+        "degraded_fraction_vs_E0": 0.43457943925233644
+      },
+      "delta_psnr": 0.1757560533897899,
+      "degraded_fraction": 0.43457943925233644,
+      "paired_image_bootstrap95": [
+        0.11468458253646566,
+        0.24095977834451976
+      ]
+    },
+    "E1_illumination": {
+      "summary": {
+        "psnr": 23.095022780872952,
+        "ssim": 0.8703581260465015,
+        "mse": 0.007471080891740134,
+        "latency_ms": 8.894221312105307,
+        "images": 428,
+        "teacher_mode_during_training": "checkpoint",
+        "manifest_sha256": "9e9450141d28a6a547a45f6e6f8422dc85739ad03b30587cad091e12fd0db673",
+        "student_only": true,
+        "degraded_fraction_vs_E0": 0.4135514018691589
+      },
+      "delta_psnr": 0.12789024370853033,
+      "degraded_fraction": 0.4135514018691589,
+      "paired_image_bootstrap95": [
+        0.06562930952722781,
+        0.19233901389291352
+      ]
+    },
+    "E1_detail": {
+      "summary": {
+        "psnr": 23.166145248947856,
+        "ssim": 0.8707177842331824,
+        "mse": 0.007499741951276213,
+        "latency_ms": 8.316310853740879,
+        "images": 428,
+        "teacher_mode_during_training": "checkpoint",
+        "manifest_sha256": "9e9450141d28a6a547a45f6e6f8422dc85739ad03b30587cad091e12fd0db673",
+        "student_only": true,
+        "degraded_fraction_vs_E0": 0.4649532710280374
+      },
+      "delta_psnr": 0.19901271178343585,
+      "degraded_fraction": 0.4649532710280374,
+      "paired_image_bootstrap95": [
+        0.09491859022702012,
+        0.3062540153476679
+      ]
+    },
+    "E2": {
+      "summary": {
+        "psnr": 23.061304157025347,
+        "ssim": 0.8696975751179401,
+        "mse": 0.007509296666667579,
+        "latency_ms": 10.569141599976362,
+        "images": 428,
+        "teacher_mode_during_training": "checkpoint",
+        "manifest_sha256": "9e9450141d28a6a547a45f6e6f8422dc85739ad03b30587cad091e12fd0db673",
+        "student_only": true,
+        "degraded_fraction_vs_E0": 0.45560747663551404
+      },
+      "delta_psnr": 0.09417161986092541,
+      "degraded_fraction": 0.45560747663551404,
+      "paired_image_bootstrap95": [
+        0.04575031605836387,
+        0.1424599994008786
+      ]
+    }
+  }
+}
