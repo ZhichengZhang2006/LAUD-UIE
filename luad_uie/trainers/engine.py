@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 import yaml
 
 from ..models.gradient_router import HeadGradientRouter
+from ..models.learned_router import LearnedRouter
 from ..datasets import PairedDataset, read_manifest, validate_splits
 from ..models import Student, KnowledgeViews, Controller
 from ..models.teacher import build_teacher
@@ -89,6 +90,9 @@ def train(config, output_dir, resume=None):
     views, rec_loss = KnowledgeViews().to(device), ReconstructionLoss(config.get('ssim_weight', .2)).to(device)
     dynamic = experiment in ('E4', 'E5')
     router = HeadGradientRouter(experiment == 'RG-full').to(device) if experiment in ('RG-scale', 'RG-full') else None
+    rc = config.get('router', {})
+    learned_router = LearnedRouter(student.feature_dim, rc.get('interval', 10), rc.get('warmup_steps', 856)).to(device) if experiment == 'RG-learned' else None
+    router_optimizer = torch.optim.Adam(learned_router.predictor.parameters(), lr=rc.get('lr', .001)) if learned_router is not None else None
     uc = config.get('utility', {})
     controller = Controller(student.feature_dim, threshold=uc.get('threshold', 0.) if experiment == 'E5' else 0.).to(device) if dynamic else None
     ctrl_optimizer = torch.optim.Adam(controller.parameters(), lr=uc.get('lr', 1e-3)) if dynamic else None
@@ -103,6 +107,9 @@ def train(config, output_dir, resume=None):
         student.load_state_dict(checkpoint['student'])
         if router is not None:
             router.load_state_dict(checkpoint['router'])
+        if learned_router is not None:
+            learned_router.load_state_dict(checkpoint['learned_router'])
+            router_optimizer.load_state_dict(checkpoint['router_optimizer'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         if controller is not None and checkpoint.get('controller') is not None:
             controller.load_state_dict(checkpoint['controller'])
@@ -156,7 +163,26 @@ def train(config, output_dir, resume=None):
                 with torch.no_grad():
                     utility = controller(ds, ss)
             per_view = views(prediction, teacher_output(x, target)) if experiment != 'E0' else x.new_zeros(x.shape[0], 3)
-            if router is not None:
+            if learned_router is not None:
+                ds, ss = controller_inputs(x, prediction, features)
+                estimated = learned_router.predict(ds, ss)
+                if step % learned_router.interval == 0:
+                    target_weights, target_cosine = learned_router.probe(prediction, features['spatial'], rec, per_view, step)
+                    predicted_weights = learned_router.weights(estimated, learned_router.warmup_steps)
+                    router_loss = F.mse_loss(estimated, target_cosine.detach())
+                    append_json(out/'router.jsonl', {
+                        'step': step, 'ids': batch['id'], 'mse_before_update': router_loss.item(),
+                        'sign_accuracy': ((estimated.detach() > 0) == (target_cosine > 0)).float().mean().item(),
+                        'weight_mae': (predicted_weights-target_weights).abs().mean().item(),
+                        'target_cosine': target_cosine.cpu().tolist(),
+                        'prediction_before_update': estimated.detach().cpu().tolist()})
+                    router_optimizer.zero_grad(set_to_none=True)
+                    router_loss.backward()
+                    router_optimizer.step()
+                # Route using the pre-update prediction; no same-batch post-fit shortcut.
+                weights = learned_router.weights(estimated.detach(), step)
+                utility = estimated.detach()
+            elif router is not None:
                 weights, utility = router(prediction, features['spatial'], rec, per_view, step)
             else:
                 weights = strategy_weights(experiment, x, utility, controller, config.get('view'))
@@ -189,6 +215,9 @@ def train(config, output_dir, resume=None):
                  'controller_optimizer': ctrl_optimizer.state_dict() if ctrl_optimizer else None}
         if router is not None:
             state['router'] = router.state_dict()
+        if learned_router is not None:
+            state['learned_router'] = learned_router.state_dict()
+            state['router_optimizer'] = router_optimizer.state_dict()
         torch.save(state, out/'last.pt')
         if scores['psnr'] > best:
             best = scores['psnr']

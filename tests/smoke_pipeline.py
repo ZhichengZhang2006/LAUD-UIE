@@ -42,12 +42,17 @@ def main():
            'lr': .001, 'ssim_weight': .2, 'kd_weight': .1,
            'data': {k: v for k, v in manifests.items() if not k.startswith('audit')},
            'utility': {'interval': 1, 'virtual_interval': 1, 'warmup_steps': 0, 'eta': .01, 'threshold': .05}}
-    for exp, view in [('E0', None), ('E1', 'color'), ('E1', 'illumination'), ('E1', 'detail'), ('E2', None), ('E3', None), ('E4', None), ('E5', None)]:
+    for exp, view in [('E0', None), ('E1', 'color'), ('E1', 'illumination'), ('E1', 'detail'), ('E2', None), ('E3', None), ('E4', None), ('E5', None), ('RG-full', None), ('RG-scale', None), ('RG-learned', None)]:
         name = exp + ('_'+view if view else '')
-        config = {**cfg, 'experiment': exp, 'view': view}
+        config = {**cfg, 'experiment': exp, 'view': view, 'router': {'interval': 1, 'warmup_steps': 0}}
         train(config, root/name)
         evaluate(root/name/'best.pt', manifests['test'], root/(name+'_eval'), args.device,
                  baseline=root/'E0_eval'/'metrics.json' if exp != 'E0' else None)
+        if exp == 'RG-learned':
+            train({**config, 'epochs': 2}, root/name, resume=root/name/'last.pt')
+            saved = torch.load(root/name/'last.pt', map_location='cpu', weights_only=True)
+            assert saved['epoch'] == 1 and saved['step'] == 2
+            assert 'learned_router' in saved and 'router_optimizer' in saved
     # Inference manifest has no GT column: student predictions require only RGB input.
     no_gt = root/'no_gt.csv'
     no_gt.write_text('id,input\ntest_0,test_0_x.png\n')

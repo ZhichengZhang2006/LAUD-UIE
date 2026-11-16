@@ -34,8 +34,7 @@ class HeadGradientRouter(nn.Module):
                     self.ema_norm.copy_(norms)
                 else:
                     self.ema_norm.lerp_(norms, 1 - self.decay)
-        scale = ((self.ema_norm.median() + 1e-12) /
-                 (self.ema_norm + 1e-12)).clamp(.1, 10)
+        scale = self.scale()
         if self.alignment:
             recovery = self.head_vectors(reconstruction * len(prediction), prediction, spatial)
             cosine = torch.nn.functional.cosine_similarity(vectors, recovery[:, None], dim=2, eps=1e-12)
@@ -45,3 +44,7 @@ class HeadGradientRouter(nn.Module):
             score = scale.expand_as(views)
         weights = score / score.sum(1, keepdim=True).clamp_min(1e-12)
         return weights.detach(), cosine
+
+    def scale(self):
+        return ((self.ema_norm.median() + 1e-12) /
+                (self.ema_norm + 1e-12)).clamp(.1, 10)
