@@ -5,6 +5,7 @@ from PIL import Image
 from luad_uie.models.student import Student
 from luad_uie.scripts.train_counterfactual import train
 from luad_uie.scripts.evaluate import evaluate
+from luad_uie.scripts.report_counterfactual import audit
 import torch
 
 
@@ -31,3 +32,5 @@ def test_counterfactual_training_calibration_and_student_only_evaluation(tmp_pat
     assert state['scale'].min()>0
     result=evaluate(tmp_path/'run/best.pt',data['test'],tmp_path/'eval','cpu')
     assert result['summary']['student_only'] and result['summary']['images']==4
+    audit(tmp_path/'run',count=2)
+    assert json.loads((tmp_path/'run/holdout_audit.json').read_text())['samples']==2
