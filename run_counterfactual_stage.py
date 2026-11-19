@@ -49,6 +49,9 @@ def main():
             # Direct E0 comparisons for CF-mean are added once the matched E0 is available.
             run(['-m','luad_uie.scripts.evaluate','--checkpoint',str(runs/name/'best.pt'),
                  '--manifest',str(data/'test.csv'),'--output',str(runs/(name+'_test'))])
+            args=['-m','luad_uie.scripts.report_counterfactual','--runs',str(runs)]
+            if cf:args+=['--audit',name]
+            run(args)
         status['status']='completed'
     except BaseException as error:
         status['status']='stopped';status['error']=repr(error);raise
