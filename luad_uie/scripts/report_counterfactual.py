@@ -57,7 +57,7 @@ def audit(run, count=32):
             'prediction_single_view_gain_pearson':corr(predicted[:,:3,:,0].mean(2),single),
             'normalized_mse':float(((predicted-truth)**2).mean()),'adoption_rate':len(selected)/len(records),
             'selected_negative_gain_fraction':sum(r['selected_gain']<0 for r in selected)/len(selected) if selected else None,
-            'per_candidate':records,'limitations':['single seed','old teacher saw original train','short-horizon utility']}
+            'per_candidate':records,'limitations':['single seed','scene independence not verified','short-horizon utility']}
     (run/'holdout_audit.json').write_text(json.dumps(result,indent=2));print(json.dumps({k:v for k,v in result.items() if k!='per_candidate'}),flush=True)
 
 
@@ -74,7 +74,7 @@ def report(runs):
             rng=np.random.default_rng(42);ci=np.quantile(rng.choice(delta,(2000,len(delta))).mean(1),[.025,.975])
             summary['comparisons'][name]={'delta_psnr_E0':float(delta.mean()),'degraded_fraction':float((delta<0).mean()),'paired_image_ci95':ci.tolist()}
     (runs/'results_summary.json').write_text(json.dumps(summary,indent=2))
-    lines=['# CF pilot实验报告（自动更新）','','这是单种子工程试验；旧教师见过原训练参考图，未证明场景独立；不得据此宣称创新有效或SOTA。',
+    lines=['# CF pilot实验报告（自动更新）','','这是单种子工程试验；教师仅使用清理后的主训练集，场景独立性仍未证明；不得据此宣称创新有效或SOTA。',
            '','| 方法 | PSNR | SSIM | 相对E0下降比例 |','|---|---:|---:|---:|']
     for name,d in results.items():
         s=d['summary'];fraction=summary['comparisons'].get(name,{}).get('degraded_fraction')

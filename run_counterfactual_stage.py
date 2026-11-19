@@ -22,9 +22,16 @@ def main():
         run(['-m','luad_uie.scripts.prepare_counterfactual','--root',str(root/'data/LSUI'),'--output',str(data)])
         cfg={'seed':42,'device':'cuda','epochs':100,'batch_size':4,'crop_size':256,'lr':.0002,
              'ssim_weight':.2,'kd_weight':.1,'student':{'width':24},'clip':False,
-             'teacher':{'mode':'checkpoint','width':48,'checkpoint':str(root/'runs/LSUI_teacher_seed42/best.pt')},
+             'teacher':{'mode':'checkpoint','width':48,'checkpoint':str(runs/'clean_teacher/best.pt')},
              'data':{k:str(data/(k+'.csv')) for k in ['train','reference','calibration','audit_candidates','audit_references','val','test']},
              'split_metadata':str(data/'metadata.json'),'probe_interval':100}
+        status['task']='clean_teacher'
+        tc={**cfg,'experiment':'E0','student':{'width':48},'teacher':{'mode':'none'},'kd_weight':0.,
+            'data':{k:v for k,v in cfg['data'].items() if k in ('train','val','test')}}
+        tp=stage/'configs/CFpilot_clean_teacher.yaml';tp.write_text(yaml.safe_dump(tc))
+        run(['-m','luad_uie.scripts.safe_train','--config',str(tp),'--output',str(runs/'clean_teacher')])
+        run(['-m','luad_uie.scripts.evaluate','--checkpoint',str(runs/'clean_teacher/best.pt'),
+             '--manifest',str(data/'test.csv'),'--output',str(runs/'clean_teacher_test')])
         for name in ['CF-mean','E0','E1-detail','E2','E0-extra','CF-periodic','CF-active']:
             status['task']=name
             c={**cfg,'data':dict(cfg['data'])}

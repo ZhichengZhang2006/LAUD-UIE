@@ -1,4 +1,4 @@
-"""Pilot CF training; old teacher saw reference data, explicitly recorded in provenance."""
+"""Pilot CF training with separate main/reference/calibration/audit manifests."""
 import argparse
 import json
 import random
@@ -68,7 +68,7 @@ def train(config, output):
     (out/'provenance.json').write_text(json.dumps({
         'manifest_sha256':{k:file_hash(v) for k,v in config['data'].items() if v},
         'teacher_sha256':file_hash(config['teacher']['checkpoint']),
-        'teacher_saw_reference_data':True,'scene_independence_verified':False,
+        'teacher_saw_reference_data':False,'scene_independence_verified':False,
         'status':'pilot','torch':torch.__version__, 'split_metadata_sha256':file_hash(config['split_metadata'])},indent=2))
     generator = torch.Generator().manual_seed(config['seed'])
     loader = DataLoader(PairedDataset(rows['train'],config['crop_size'],True), batch_size=config['batch_size'],

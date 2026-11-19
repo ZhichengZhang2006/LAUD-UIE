@@ -13,17 +13,27 @@ def prepare(root, output):
     root, output=Path(root),Path(output)
     output.mkdir(parents=True,exist_ok=False)
     splits={k:read_manifest(root/(k+'.csv')) for k in ('train','val','test')}
-    records=splits['train']; parents=list(range(len(records)))
+    def digest(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    test_hashes={digest(r[k]) for r in splits['test'] for k in ('input','target')}
+    omitted=[]
+    clean_val=[]
+    for row in splits['val']:
+        if any(digest(row[k]) in test_hashes for k in ('input','target')):
+            omitted.append({'split':'val','id':row['id'],'reason':'exact file content overlaps test'})
+        else:clean_val.append(row)
+    splits['val']=clean_val
+    heldout=test_hashes|{digest(r[k]) for r in clean_val for k in ('input','target')}
+    records=[]
+    for row in splits['train']:
+        if any(digest(row[k]) in heldout for k in ('input','target')):
+            omitted.append({'split':'train','id':row['id'],'reason':'exact file content overlaps val/test'})
+        else:records.append(row)
+    parents=list(range(len(records)))
     def find(i):
         while parents[i]!=i:parents[i]=parents[parents[i]];i=parents[i]
         return i
     def union(i,j):parents[find(i)]=find(j)
     hashes={}; dhashes=[];statistics={}
-    heldout=set()
-    def digest(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-    for split in ('val','test'):
-        for r in splits[split]:
-            heldout.update(digest(r[k]) for k in ('input','target'))
     for i,row in enumerate(records):
         for key in ('input','target'):
             h=digest(row[key])
@@ -57,7 +67,7 @@ def prepare(root, output):
             writer=csv.DictWriter(f,fieldnames=['id','input','target']);writer.writeheader();writer.writerows(rows)
     info={'counts':{k:len(v) for k,v in allocated.items()},'groups':len(groups),
           'grouping':'input/target SHA256 equality or input dHash hamming<=4 connected components',
-          'scene_independence_verified':False,'teacher_saw_reference_data':True,
+          'scene_independence_verified':False,'teacher_saw_reference_data':False,'omitted_cross_split_duplicates':omitted,
           'statistics':statistics,'group_ids':{r['id']:str(find(i)) for i,r in enumerate(records)}}
     (output/'metadata.json').write_text(json.dumps(info,indent=2))
     print(json.dumps(info['counts']),flush=True)
