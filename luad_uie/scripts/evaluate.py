@@ -1,3 +1,4 @@
+from ..models.selective_student import build_student
 import argparse
 import json
 import time
@@ -41,7 +42,7 @@ def evaluate(checkpoint, manifest, output, device='cuda', baseline=None, save_im
     base = json.loads(Path(baseline).read_text(encoding='utf-8')) if baseline else None
     if base is not None:
         validate_baseline(base, config, manifest_hash)
-    student = Student(state['config']['student']['width']).to(device).eval()
+    student = build_student(config['student']).to(device).eval()
     student.load_state_dict(state['student'])
     records = read_manifest(manifest, require_target=False)
     if inference_only:

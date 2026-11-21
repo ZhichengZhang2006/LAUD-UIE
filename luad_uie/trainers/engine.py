@@ -1,3 +1,4 @@
+from ..models.selective_student import build_student
 import json
 import time
 from pathlib import Path
@@ -83,12 +84,14 @@ def train(config, output_dir, resume=None):
         return DataLoader(dataset, batch_size=batch_size or (config['batch_size'] if training else 1),
                           shuffle=training, num_workers=0, generator=generator)
     train_loader, val_loader = loader('train', True), loader('val')
-    student = Student(config['student']['width']).to(device)
+    student = build_student(config['student']).to(device)
     optimizer = torch.optim.Adam(student.parameters(), lr=config['lr'])
     experiment = config['experiment']
     teacher = build_teacher(config['teacher'], device) if experiment != 'E0' else None
     views, rec_loss = KnowledgeViews().to(device), ReconstructionLoss(config.get('ssim_weight', .2)).to(device)
     dynamic = experiment in ('E4', 'E5')
+    if config['student'].get('architecture', 'unet') != 'unet' and experiment.startswith('RG-'):
+        raise ValueError('RG analytic gradients require the sigmoid RGB head')
     router = HeadGradientRouter(experiment == 'RG-full').to(device) if experiment in ('RG-scale', 'RG-full') else None
     rc = config.get('router', {})
     learned_router = LearnedRouter(student.feature_dim, rc.get('interval', 10), rc.get('warmup_steps', 856)).to(device) if experiment == 'RG-learned' else None
