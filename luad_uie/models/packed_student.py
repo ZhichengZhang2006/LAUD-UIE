@@ -10,10 +10,11 @@ from .student import Student, block
 class PackedStudent(Student):
     """Predict an RGB correction for each pixel in a 2×2 input cell."""
 
-    def __init__(self, width=24, phase_residual=True):
+    def __init__(self, width=24, phase_residual=True, global_context=False):
         super().__init__(width)
         self.enc1 = block(12, width)
         self.phase_residual = phase_residual
+        self.global_context = global_context
         # Match parameter budget when ablating the centered residual.
         self.head = nn.Conv2d(width, 12, 1)
         nn.init.zeros_(self.head.weight)
@@ -26,6 +27,10 @@ class PackedStudent(Student):
         e1 = self.enc1(packed)
         e2 = self.enc2(F.avg_pool2d(e1, 2))
         bridge = self.bottleneck(F.avg_pool2d(e2, 2))
+        if self.global_context:
+            # Broadcast the whole-frame mean within the existing feature tensor.
+            # The decoder can correct both scene exposure and local structure.
+            bridge = bridge + bridge.mean(dim=(-2, -1), keepdim=True)
         d2 = self.dec2(torch.cat([F.interpolate(bridge, size=e2.shape[-2:], mode='bilinear',
                                                align_corners=False), e2], dim=1))
         features = self.dec1(torch.cat([F.interpolate(d2, size=e1.shape[-2:], mode='bilinear',

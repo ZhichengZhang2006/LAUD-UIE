@@ -21,6 +21,8 @@ from ..trainers.engine import validate
 
 MODELS = ('packed_rgb', 'packed_bands', 'mambacue')
 EXPOSURE_ARM = 'packed_exposure'
+CONTEXT_ARM = 'packed_context'
+PACKED_ARMS = ('packed_rgb', 'packed_bands', EXPOSURE_ARM, CONTEXT_ARM)
 
 
 def loss_by_band(prediction, reference):
@@ -47,12 +49,19 @@ def subset(rows, limit, seed):
     return order[:limit] if limit else order
 
 
-def load_network(arm, mamba_root):
+def student_config(arm, width):
+    if arm == 'mambacue':
+        return {'architecture':'mambacue', 'width':32}
+    return {'architecture':'packed', 'width':width, 'phase_residual':True,
+            'global_context':arm == CONTEXT_ARM}
+
+
+def load_network(arm, mamba_root, width):
     if arm == 'mambacue':
         sys.path.insert(0, str(mamba_root))
         from model import myModel
         return myModel(use_checkpoint=True)
-    return build_student({'architecture': 'packed', 'width': 24, 'phase_residual': True})
+    return build_student(student_config(arm, width))
 
 
 def atomic_checkpoint(data, path):
@@ -69,7 +78,7 @@ def train(arm, fit, validation, output, args):
     train_loader = DataLoader(PairedDataset(fit, augment=True, resize=256), batch_size=2,
                               shuffle=True, generator=generator, num_workers=2, pin_memory=True)
     val_loader = DataLoader(PairedDataset(validation, resize=256), batch_size=1, num_workers=2)
-    network = load_network(arm, args.mamba).to(device)
+    network = load_network(arm, args.mamba, args.width).to(device)
     optimizer = torch.optim.AdamW(network.parameters(), lr=2e-4, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, eta_min=2e-5)
     reconstruction = ReconstructionLoss(ssim_weight=.2)
@@ -85,9 +94,9 @@ def train(arm, fit, validation, output, args):
             optimizer.zero_grad(set_to_none=True)
             prediction = network(x)
             loss = reconstruction(prediction, target)
-            if arm in ('packed_bands', EXPOSURE_ARM):
+            if arm in ('packed_bands', EXPOSURE_ARM, CONTEXT_ARM):
                 loss = loss + loss_by_band(prediction, target)
-            if arm == EXPOSURE_ARM:
+            if arm in (EXPOSURE_ARM, CONTEXT_ARM):
                 loss = loss + loss_by_exposure(prediction, target)
             if not torch.isfinite(loss).item():
                 raise RuntimeError(f'{arm}: non-finite loss at step {step}')
@@ -107,10 +116,8 @@ def train(arm, fit, validation, output, args):
         scheduler.step()
         state = {'student':network.state_dict(), 'arm':arm, 'epoch':epoch+1, 'val':val,
                  'optimizer':optimizer.state_dict(), 'scheduler':scheduler.state_dict(),
-                 'config':{'student':{'architecture':'packed','width':24,'phase_residual':True},
+                 'config':{'student':student_config(arm, args.width),
                            'data':{'train':str(args.train),'val':str(args.val)}}}
-        if arm == 'mambacue':
-            state['config']['student'] = {'architecture':'mambacue', 'width':32}
         atomic_checkpoint(state, output/'last.pt')
         if val['psnr'] > best:
             best = val['psnr']
@@ -135,7 +142,7 @@ def run(args):
         'epochs':args.epochs, 'seed':args.seed,
         'torch':torch.__version__, 'gpu':torch.cuda.get_device_name(),
         'cublas_workspace_config':os.environ['CUBLAS_WORKSPACE_CONFIG'],
-        'arms':list(args.arms), 'train_size':256, 'batch':2,
+        'arms':list(args.arms), 'train_size':256, 'batch':2, 'student_width':args.width,
     }
     (args.output/'provenance.json').write_text(json.dumps(provenance, indent=2))
     if args.historical_mamba:
@@ -144,7 +151,7 @@ def run(args):
         weights = Path(historical['path'])
         if file_hash(weights) != historical['sha256']:
             raise ValueError('Historical MambaCue state has an unexpected hash')
-        mamba = load_network('mambacue', args.mamba).cuda().eval()
+        mamba = load_network('mambacue', args.mamba, args.width).cuda().eval()
         mamba.load_state_dict(torch.load(weights, map_location='cpu', weights_only=True))
         val_loader = DataLoader(PairedDataset(validation, resize=256), batch_size=1, num_workers=2)
         record = {'mambacue_sha256':historical['sha256'],
@@ -174,6 +181,7 @@ if __name__ == '__main__':
     parser.add_argument('--val-limit', type=int, default=128)
     parser.add_argument('--epochs', type=int, default=12)
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--arms', nargs='+', choices=(*MODELS, EXPOSURE_ARM), default=MODELS)
+    parser.add_argument('--arms', nargs='+', choices=(*PACKED_ARMS, 'mambacue'), default=MODELS)
+    parser.add_argument('--width', type=int, default=24)
     parser.add_argument('--historical-mamba', action='store_true')
     run(parser.parse_args())
