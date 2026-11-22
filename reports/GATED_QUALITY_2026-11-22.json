@@ -1,0 +1,81 @@
+{
+  "quality_wins": 0,
+  "quality_endpoints": 10,
+  "meets_80_percent_quality": false,
+  "results": [
+    {
+      "subset": "LSUI",
+      "metric": "SSIM",
+      "mambacue": 0.935714572946602,
+      "candidate": 0.8894975034990044,
+      "wins": false
+    },
+    {
+      "subset": "LSUI",
+      "metric": "PSNR",
+      "mambacue": 31.23237206818997,
+      "candidate": 23.95768310305718,
+      "wins": false
+    },
+    {
+      "subset": "LSUI",
+      "metric": "LPIPS",
+      "mambacue": 0.11083467006161113,
+      "candidate": 0.1953519559073671,
+      "wins": false
+    },
+    {
+      "subset": "LSUI",
+      "metric": "E00",
+      "mambacue": 4.023190469385307,
+      "candidate": 8.08821100442209,
+      "wins": false
+    },
+    {
+      "subset": "LSUI",
+      "metric": "UCIQE",
+      "mambacue": 0.3705332332840186,
+      "candidate": 0.35200567672466737,
+      "wins": false
+    },
+    {
+      "subset": "unpaired",
+      "metric": "UIQM",
+      "mambacue": 3.45687673966298,
+      "candidate": 3.263275855583216,
+      "wins": false
+    },
+    {
+      "subset": "unpaired",
+      "metric": "UCIQE",
+      "mambacue": 0.36803591621761944,
+      "candidate": 0.33754154338899617,
+      "wins": false
+    },
+    {
+      "subset": "unpaired",
+      "metric": "URanker",
+      "mambacue": 1.3450226665991876,
+      "candidate": 0.6516763647914761,
+      "wins": false
+    },
+    {
+      "subset": "unpaired",
+      "metric": "Entropy",
+      "mambacue": 7.19304610146853,
+      "candidate": 6.860143535795688,
+      "wins": false
+    },
+    {
+      "subset": "unpaired",
+      "metric": "NIQE",
+      "mambacue": 5.537549053555329,
+      "candidate": 5.551005099054787,
+      "wins": false
+    }
+  ],
+  "checkpoint_sha256": [
+    "8fdc58753d5e27fb14aebd43b1538594ca4c7bc01f6029fb807f505d327b2765",
+    "73f069d81334a4aa67498a76a7986eb1e0558d89b286c98d2559aed5cc812662"
+  ]
+}

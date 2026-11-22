@@ -1,0 +1,31 @@
+{
+  "model_shape": "batch=1, RGB, float32, TF32 off",
+  "shared_gpu": true,
+  "device": "NVIDIA A100-PCIE-40GB",
+  "measurements": {
+    "256": {
+      "mambacue": {
+        "median_ms": 57.73209571838379,
+        "p90_ms": 65.8892822265625,
+        "parameters": 2244946
+      },
+      "candidate": {
+        "median_ms": 0.5693439841270447,
+        "p90_ms": 6.367231845855713,
+        "parameters": 265687
+      }
+    },
+    "512": {
+      "mambacue": {
+        "median_ms": 210.42073822021484,
+        "p90_ms": 227.36793518066406,
+        "parameters": 2244946
+      },
+      "candidate": {
+        "median_ms": 1.0209280252456665,
+        "p90_ms": 6.380544185638428,
+        "parameters": 265687
+      }
+    }
+  }
+}

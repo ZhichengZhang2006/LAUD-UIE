@@ -1,0 +1,36 @@
+{
+  "threshold": 150,
+  "test_images": 110,
+  "archives": {
+    "suim_calibration120.zip": "8c53f98ee305505bdd6866f91350bdf5308469773ebd745171f22dba26e24abe",
+    "suim_test110.zip": "ba02025666e19bda0b484af238549a8f78500460ff07204f5296d5b60dd9e027"
+  },
+  "metrics": {
+    "raw": {
+      "f1": 0.2599628444506956,
+      "recall": 0.5571975882426831,
+      "precision": 0.16952854489448058,
+      "matched": 88717,
+      "predicted": 523316,
+      "annotated": 159220
+    },
+    "mambacue": {
+      "f1": 0.2550565082633799,
+      "recall": 0.6876585856048235,
+      "precision": 0.1565633816512161,
+      "matched": 109489,
+      "predicted": 699327,
+      "annotated": 159220
+    },
+    "candidate": {
+      "f1": 0.24495808380515297,
+      "recall": 0.6778294184147721,
+      "precision": 0.14949102629986025,
+      "matched": 107924,
+      "predicted": 721943,
+      "annotated": 159220
+    }
+  },
+  "mambacue": "8fdc58753d5e27fb14aebd43b1538594ca4c7bc01f6029fb807f505d327b2765",
+  "candidate": "73f069d81334a4aa67498a76a7986eb1e0558d89b286c98d2559aed5cc812662"
+}
