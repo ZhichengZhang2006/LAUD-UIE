@@ -47,8 +47,9 @@ def validate_splits(splits):
 
 
 class PairedDataset(Dataset):
-    def __init__(self, rows, crop_size=None, augment=False):
+    def __init__(self, rows, crop_size=None, augment=False, resize=None):
         self.rows, self.crop_size, self.augment = rows, crop_size, augment
+        self.resize = resize
 
     def __len__(self):
         return len(self.rows)
@@ -59,6 +60,8 @@ class PairedDataset(Dataset):
         images = [Image.open(row[k]).convert('RGB') for k in keys]
         if len({im.size for im in images}) != 1:
             raise ValueError(f'Unaligned image sizes: {row["id"]}')
+        if self.resize:
+            images = [im.resize((self.resize, self.resize), Image.BILINEAR) for im in images]
         if self.crop_size:
             size = self.crop_size
             w, h = images[0].size

@@ -3,6 +3,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from .student import Student
+from .packed_student import PackedStudent
 
 
 def local_mean(x):
@@ -48,4 +49,6 @@ def build_student(config):
         return Student(config['width'])
     if name == 'selective':
         return SelectiveStudent(config['width'], gated=config.get('gated', True))
+    if name == 'packed':
+        return PackedStudent(config['width'], phase_residual=config.get('phase_residual', True))
     raise ValueError(f'Unknown student architecture: {name}')
