@@ -1,0 +1,37 @@
+{
+  "checkpoint_sha256": {
+    "mambacue": "8fdc58753d5e27fb14aebd43b1538594ca4c7bc01f6029fb807f505d327b2765",
+    "candidate": "73f069d81334a4aa67498a76a7986eb1e0558d89b286c98d2559aed5cc812662"
+  },
+  "quality": {
+    "wins": 0,
+    "endpoints": 10,
+    "pass": false
+  },
+  "boundary": {
+    "mambacue_f1": 0.2550565082633799,
+    "candidate_f1": 0.24495808380515297,
+    "pass": false
+  },
+  "detection": {
+    "pass": null
+  },
+  "speed": {
+    "sizes": {
+      "256": {
+        "mambacue_ms": 59.62240028381348,
+        "candidate_ms": 0.5985279977321625,
+        "faster": true
+      },
+      "512": {
+        "mambacue_ms": 241.26105499267578,
+        "candidate_ms": 1.0408959984779358,
+        "faster": true
+      }
+    },
+    "shared_gpu": true,
+    "pass": true
+  },
+  "all_measurement_gates_pass": false,
+  "novelty_and_ablation_evidence_required": true
+}

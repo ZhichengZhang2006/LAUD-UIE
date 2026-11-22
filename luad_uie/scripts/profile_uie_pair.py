@@ -4,14 +4,17 @@ import json
 from pathlib import Path
 from statistics import median
 import torch
-from benchmark_uie_downstream import models
+if __package__:
+    from .benchmark_uie_downstream import digest, models
+else:
+    from benchmark_uie_downstream import digest, models
 
 
 @torch.inference_mode()
 def run(checkpoint, output):
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
-    networks, _ = models(checkpoint)
+    networks, baseline_sha = models(checkpoint)
     report = {}
     for size in (256, 512):
         x = torch.rand(1,3,size,size, device='cuda', generator=torch.Generator(device='cuda').manual_seed(42))
@@ -34,7 +37,8 @@ def run(checkpoint, output):
                         for k,v in samples.items()}
     with output.open('x') as stream:
         json.dump({'model_shape': 'batch=1, RGB, float32, TF32 off', 'shared_gpu':True,
-                   'device':torch.cuda.get_device_name(),'measurements':report},stream,indent=2)
+                   'device':torch.cuda.get_device_name(),'measurements':report,
+                   'checkpoint_sha256':[baseline_sha,digest(checkpoint)]},stream,indent=2)
 
 
 if __name__ == '__main__':
