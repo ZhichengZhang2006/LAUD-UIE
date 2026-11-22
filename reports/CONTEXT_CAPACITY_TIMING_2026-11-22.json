@@ -1,0 +1,41 @@
+{
+  "shared_gpu": true,
+  "weights": "untrained initialization",
+  "shape": "batch=1 RGB FP32 TF32 off",
+  "measurements": {
+    "256": {
+      "local24": {
+        "parameters": 267756,
+        "median_ms": 0.48127999901771545,
+        "p90_ms": 0.48742398619651794
+      },
+      "context24": {
+        "parameters": 267756,
+        "median_ms": 0.4925439953804016,
+        "p90_ms": 0.5048320293426514
+      },
+      "context40": {
+        "parameters": 740012,
+        "median_ms": 0.6947839856147766,
+        "p90_ms": 7.902207851409912
+      }
+    },
+    "512": {
+      "local24": {
+        "parameters": 267756,
+        "median_ms": 0.8488960266113281,
+        "p90_ms": 0.8755199909210205
+      },
+      "context24": {
+        "parameters": 267756,
+        "median_ms": 0.869376003742218,
+        "p90_ms": 6.674431800842285
+      },
+      "context40": {
+        "parameters": 740012,
+        "median_ms": 1.608191967010498,
+        "p90_ms": 1.674239993095398
+      }
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "raw": {
+    "images": 3778,
+    "coco": {
+      "AP": 0.4788312445914171,
+      "AP50": 0.7508548598794109,
+      "AP75": 0.5041234441600086,
+      "AP_small": 0.11614780171712166,
+      "AP_medium": 0.3187230674820433,
+      "AP_large": 0.5290872934314854
+    },
+    "centers": {
+      "mean_normalized_error": 0.04760594932869185,
+      "recall_iou50_score30": 0.7986008154188288,
+      "precision_iou50_score30": 0.36894263698630136,
+      "matches": 17237,
+      "ground_truth": 21584
+    },
+    "provenance": {
+      "checkpoint": null,
+      "detector": "f598428cd24a9192528ad764fa2d26fc60d9d35221ac13525d229adffb511946",
+      "annotations": "36f7a0fc407a6005c1cbe7b99fdd38bb7f31a27fdbe097d6a581116247de63c7"
+    }
+  },
+  "mambacue": {
+    "images": 3778,
+    "coco": {
+      "AP": 0.4212508935167928,
+      "AP50": 0.6730151405365051,
+      "AP75": 0.4391805302238064,
+      "AP_small": 0.0885352410921921,
+      "AP_medium": 0.27593092257600327,
+      "AP_large": 0.47206882384319965
+    },
+    "centers": {
+      "mean_normalized_error": 0.048685890006764765,
+      "recall_iou50_score30": 0.7045496664195701,
+      "precision_iou50_score30": 0.35480634624358376,
+      "matches": 15207,
+      "ground_truth": 21584
+    },
+    "provenance": {
+      "checkpoint": "8fdc58753d5e27fb14aebd43b1538594ca4c7bc01f6029fb807f505d327b2765",
+      "detector": "f598428cd24a9192528ad764fa2d26fc60d9d35221ac13525d229adffb511946",
+      "annotations": "36f7a0fc407a6005c1cbe7b99fdd38bb7f31a27fdbe097d6a581116247de63c7"
+    }
+  }
+}
