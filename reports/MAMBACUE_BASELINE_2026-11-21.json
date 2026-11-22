@@ -1,0 +1,54 @@
+{
+  "provenance": {
+    "checkpoint": {
+      "path": "/home/user/MambaCue/output/L1+SSIM+Prep+Lab+grad+Angle/four/color-illumination-contrast/both/LSUI/20261009_112952/best_model.pth",
+      "sha256": "8fdc58753d5e27fb14aebd43b1538594ca4c7bc01f6029fb807f505d327b2765",
+      "selection": "historical supplied checkpoint; not a new five-seed control"
+    },
+    "model_parameters": 2244946,
+    "device": "NVIDIA A100-PCIE-40GB",
+    "torch": "2.4.0+cu121",
+    "preprocessing": "PIL RGB bilinear 256x256 float32 /255",
+    "source_sha256": {
+      "model.py": "a49615d4c6d1b5e9205407055bf75a9c4fb0b258b2738da8d5439edd5f515526",
+      "encoder.py": "f2b02b0e4117cab20cf2020196d9ecd586154b752ecaf16644ff18ecd31eacb3",
+      "output_heads.py": "e62c80291380e91b575c407368efcf2f485e84d47ea84583f9af57f0c3b5909b",
+      "prior.py": "07950b81faf6b17c3272c3995a6fb8fb583006c0329800f0dcc5dbfd2c5e4632",
+      "utils/metrics.py": "909b61f022ba7767408516026540fc89c25e83334b4f8d902370bb4b1c5f5768",
+      "utils/niqe_utils.py": "429f9f77f2e8e53f319e7856d97b7354958fee94ecd301f3895092aa18aac0f7"
+    },
+    "manifest_sha256": "2811158e47e7eebd42bfa62ca5777a20259c19889947dee95db382211082df46"
+  },
+  "shared_gpu_profile": {
+    "median_ms": 99.99701149354223,
+    "p90_ms": 100.04474169982132,
+    "peak_bytes": 180204032,
+    "shared_gpu": true
+  },
+  "datasets": {
+    "LSUI": {
+      "count": 428,
+      "UCIQE": 0.3705332332840186,
+      "SSIM": 0.935714572946602,
+      "PSNR": 31.232372068189974,
+      "E00": 4.023190469385307,
+      "LPIPS_vgg_v01": 0.11083467006161113
+    },
+    "U45": {
+      "count": 45,
+      "UCIQE": 0.3798275888681134,
+      "UIQM": 3.404622993949066,
+      "Entropy": 7.4318777813082155,
+      "NIQE": 4.347245401539064,
+      "URanker": 1.6356611536608803
+    },
+    "CH60": {
+      "count": 60,
+      "UCIQE": 0.3562442435671255,
+      "UIQM": 3.5091304853768936,
+      "Entropy": 6.954214421628845,
+      "NIQE": 6.727852705571594,
+      "URanker": 1.054384179537495
+    }
+  }
+}

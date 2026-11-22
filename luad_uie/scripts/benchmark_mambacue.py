@@ -1,5 +1,6 @@
 """Collect per-image MambaCue reference measurements using the supplied LSUI weights."""
 import hashlib
+import argparse
 import json
 import os
 import sys
@@ -23,19 +24,30 @@ def load_rgb(path):
 
 
 @torch.inference_mode()
-def main(output):
+def main(output, student_checkpoint=None):
     repo = Path('/home/user/MambaCue')
     os.chdir(repo)
     sys.path.insert(0, str(repo))
-    from model import myModel
     from utils import metrics
     from utils.uranker.uranker_utils import build_model, get_option
     protocol = repo/'supplement_20261112/protocol'
-    checkpoint = json.loads((protocol/'historical_checkpoints.json').read_text())['LSUI']
-    if digest(checkpoint['path']) != checkpoint['sha256']:
-        raise ValueError('Baseline checkpoint SHA mismatch')
-    model = myModel().eval().cuda()
-    model.load_state_dict(torch.load(checkpoint['path'], map_location='cpu'), strict=True)
+    if student_checkpoint is None:
+        from model import myModel
+        checkpoint = json.loads((protocol/'historical_checkpoints.json').read_text())['LSUI']
+        if digest(checkpoint['path']) != checkpoint['sha256']:
+            raise ValueError('Baseline checkpoint SHA mismatch')
+        model = myModel()
+        weights = torch.load(checkpoint['path'], map_location='cpu', weights_only=True)
+        model_name = 'MambaCue'
+    else:
+        from luad_uie.models.selective_student import build_student
+        checkpoint = {'path': str(student_checkpoint), 'sha256': digest(student_checkpoint)}
+        state = torch.load(student_checkpoint, map_location='cpu', weights_only=True)
+        model = build_student(state['config']['student'])
+        weights = state['student']
+        model_name = 'LUAD-UIE'
+    model.load_state_dict(weights, strict=True)
+    model.cuda().eval()
     manifest = json.loads((protocol/'LSUI_test.json').read_text())
     images = {'LSUI': manifest}
     for name in ('U45', 'CH60'):
@@ -43,7 +55,7 @@ def main(output):
         images[name] = [{'input': str(path), 'name': path.name} for path in paths
                         if path.suffix.lower() in ('.jpg', '.png', '.bmp', '.jpeg')]
     output.mkdir(parents=True, exist_ok=False)
-    metadata = {'checkpoint':checkpoint, 'model_parameters':sum(p.numel() for p in model.parameters()),
+    metadata = {'model':model_name, 'checkpoint':checkpoint, 'model_parameters':sum(p.numel() for p in model.parameters()),
                 'device':torch.cuda.get_device_name(), 'torch':str(torch.__version__),
                 'preprocessing':'PIL RGB bilinear 256x256 float32 /255',
                 'source_sha256':{f:digest(repo/f) for f in ('model.py','encoder.py','output_heads.py','prior.py','utils/metrics.py','utils/niqe_utils.py')},
@@ -97,4 +109,8 @@ def main(output):
 
 
 if __name__ == '__main__':
-    main(Path(sys.argv[1]).resolve())
+    parser = argparse.ArgumentParser()
+    parser.add_argument('output', type=Path)
+    parser.add_argument('--student-checkpoint', type=Path)
+    args = parser.parse_args()
+    main(args.output.resolve(), args.student_checkpoint.resolve() if args.student_checkpoint else None)

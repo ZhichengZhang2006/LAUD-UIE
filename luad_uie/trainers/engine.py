@@ -1,3 +1,4 @@
+from ..losses.particles import add_particles, stable_structure_loss
 from ..models.selective_student import build_student
 import json
 import time
@@ -87,6 +88,10 @@ def train(config, output_dir, resume=None):
     student = build_student(config['student']).to(device)
     optimizer = torch.optim.Adam(student.parameters(), lr=config['lr'])
     experiment = config['experiment']
+    particle_pair = config.get('particle_pair', {})
+    if particle_pair and (experiment != 'E1' or config.get('view') != 'detail'
+                          or config['teacher']['mode'] != 'checkpoint'):
+        raise ValueError('Particle pairs require E1 detail with a frozen teacher')
     teacher = build_teacher(config['teacher'], device) if experiment != 'E0' else None
     views, rec_loss = KnowledgeViews().to(device), ReconstructionLoss(config.get('ssim_weight', .2)).to(device)
     dynamic = experiment in ('E4', 'E5')
@@ -160,12 +165,23 @@ def train(config, output_dir, resume=None):
             x, target = batch['input'].to(device), batch['target'].to(device)
             prediction, features = student(x, True)
             rec = rec_loss(prediction, target)
+            structure = None
+            if particle_pair:
+                corrupted, mask = add_particles(x, seed=config['seed'] * 10**7 + step)
+                perturbed = student(corrupted)
+                rec = (rec + rec_loss(perturbed, target)) / 2
+                taught = teacher_output(x, target)
+                if particle_pair.get('stable_structure', False):
+                    structure = stable_structure_loss(prediction, perturbed, taught, target, mask)
             utility = None
             if dynamic:
                 ds, ss = controller_inputs(x, prediction, features)
                 with torch.no_grad():
                     utility = controller(ds, ss)
-            per_view = views(prediction, teacher_output(x, target)) if experiment != 'E0' else x.new_zeros(x.shape[0], 3)
+            if particle_pair:
+                per_view = (views(prediction, taught) + views(perturbed, taught)) / 2
+            else:
+                per_view = views(prediction, teacher_output(x, target)) if experiment != 'E0' else x.new_zeros(x.shape[0], 3)
             if learned_router is not None:
                 ds, ss = controller_inputs(x, prediction, features)
                 estimated = learned_router.predict(ds, ss)
@@ -193,6 +209,8 @@ def train(config, output_dir, resume=None):
                 weights = torch.zeros_like(weights)
             kd = (per_view*weights.detach()).sum(1).mean()
             loss = rec + config['kd_weight']*kd
+            if structure is not None:
+                loss = loss + particle_pair.get('weight', .1) * structure
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
             optimizer.step()
