@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 
 from ..datasets import PairedDataset, read_manifest, validate_splits
 from ..losses import ReconstructionLoss
+from ..losses.phase_consistency import phase_edge_loss, shift
 from ..models.knowledge_views import lab_chroma
 from ..models.selective_student import build_student
 from ..runtime import append_json, file_hash, seed_all
@@ -22,7 +23,8 @@ from ..trainers.engine import validate
 MODELS = ('packed_rgb', 'packed_bands', 'mambacue')
 EXPOSURE_ARM = 'packed_exposure'
 CONTEXT_ARM = 'packed_context'
-PACKED_ARMS = ('packed_rgb', 'packed_bands', EXPOSURE_ARM, CONTEXT_ARM)
+PHASE_ARMS = ('packed_phase_pair', 'packed_phase_consistency')
+PACKED_ARMS = ('packed_rgb', 'packed_bands', EXPOSURE_ARM, CONTEXT_ARM, *PHASE_ARMS)
 
 
 def loss_by_band(prediction, reference):
@@ -79,6 +81,14 @@ def train(arm, fit, validation, output, args):
                               shuffle=True, generator=generator, num_workers=2, pin_memory=True)
     val_loader = DataLoader(PairedDataset(validation, resize=256), batch_size=1, num_workers=2)
     network = load_network(arm, args.mamba, args.width).to(device)
+    if args.initial_checkpoint:
+        saved = torch.load(args.initial_checkpoint, map_location='cpu', weights_only=True)
+        initial_shape = {'architecture':'packed', 'width':args.width, 'phase_residual':True}
+        if any(saved['config']['student'].get(k) != v for k, v in initial_shape.items()):
+            raise ValueError('Unexpected phase ablation initialization')
+        if saved['config']['student'].get('global_context', False):
+            raise ValueError('Phase ablation expects the local packed checkpoint')
+        network.load_state_dict(saved['student'])
     optimizer = torch.optim.AdamW(network.parameters(), lr=2e-4, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, eta_min=2e-5)
     reconstruction = ReconstructionLoss(ssim_weight=.2)
@@ -94,6 +104,12 @@ def train(arm, fit, validation, output, args):
             optimizer.zero_grad(set_to_none=True)
             prediction = network(x)
             loss = reconstruction(prediction, target)
+            if arm in PHASE_ARMS:
+                dx, dy = ((1, 0), (0, 1), (1, 1))[step % 3]
+                moved = network(shift(x, dx, dy))
+                loss = .5 * (loss + reconstruction(moved, shift(target, dx, dy)))
+                if arm == 'packed_phase_consistency':
+                    loss = loss + .2 * phase_edge_loss(prediction, moved, target, dx, dy)
             if arm in ('packed_bands', EXPOSURE_ARM, CONTEXT_ARM):
                 loss = loss + loss_by_band(prediction, target)
             if arm in (EXPOSURE_ARM, CONTEXT_ARM):
@@ -127,6 +143,8 @@ def train(arm, fit, validation, output, args):
 def run(args):
     # Set before the first CUDA call, so the deterministic Lab projection can use cuBLAS.
     os.environ.setdefault('CUBLAS_WORKSPACE_CONFIG', ':4096:8')
+    if args.initial_checkpoint and any(arm not in PHASE_ARMS for arm in args.arms):
+        raise ValueError('This initialization option is for the paired phase ablation')
     fit = read_manifest(args.train)
     validation = read_manifest(args.val)
     validate_splits({'train':fit, 'val':validation})
@@ -142,6 +160,7 @@ def run(args):
         'epochs':args.epochs, 'seed':args.seed,
         'torch':torch.__version__, 'gpu':torch.cuda.get_device_name(),
         'cublas_workspace_config':os.environ['CUBLAS_WORKSPACE_CONFIG'],
+        'initial_checkpoint_sha256':file_hash(args.initial_checkpoint) if args.initial_checkpoint else None,
         'arms':list(args.arms), 'train_size':256, 'batch':2, 'student_width':args.width,
     }
     (args.output/'provenance.json').write_text(json.dumps(provenance, indent=2))
@@ -183,5 +202,6 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--arms', nargs='+', choices=(*PACKED_ARMS, 'mambacue'), default=MODELS)
     parser.add_argument('--width', type=int, default=24)
+    parser.add_argument('--initial-checkpoint',type=Path)
     parser.add_argument('--historical-mamba', action='store_true')
     run(parser.parse_args())
