@@ -1,0 +1,252 @@
+{
+  "frozen_test_error": {
+    "8": {
+      "manifest_sha256": "2811158e47e7eebd42bfa62ca5777a20259c19889947dee95db382211082df46",
+      "images": 428,
+      "cell_side": 8,
+      "summary": {
+        "mambacue": {
+          "mse": 0.0016047764892174634,
+          "smooth_neutral": 0.0006260005342930572,
+          "smooth_opponent": 0.0005140576256863602,
+          "detail_neutral": 0.00038833909565429717,
+          "detail_opponent": 7.637923358374872e-05
+        },
+        "candidate": {
+          "mse": 0.006725983283680576,
+          "smooth_neutral": 0.004266085873481259,
+          "smooth_opponent": 0.0017356507699346237,
+          "detail_neutral": 0.0005904496147095106,
+          "detail_opponent": 0.00013379702555518477
+        }
+      },
+      "candidate_excess": {
+        "mse": 0.005121206794463113,
+        "smooth_neutral": 0.0036400853391882018,
+        "smooth_opponent": 0.0012215931442482635,
+        "detail_neutral": 0.0002021105190552134,
+        "detail_opponent": 5.7417791971436046e-05
+      },
+      "paired_image_interval_95": {
+        "mse": [
+          0.0043821140521868515,
+          0.0059265915873161846
+        ],
+        "smooth_neutral": [
+          0.003014739544208411,
+          0.00429626253653113
+        ],
+        "smooth_opponent": [
+          0.0009951629313335996,
+          0.001472265109163731
+        ],
+        "detail_neutral": [
+          0.00018392798920753234,
+          0.00022213480198615012
+        ],
+        "detail_opponent": [
+          5.165764572268575e-05,
+          6.352974864891033e-05
+        ]
+      }
+    },
+    "16": {
+      "manifest_sha256": "2811158e47e7eebd42bfa62ca5777a20259c19889947dee95db382211082df46",
+      "images": 428,
+      "cell_side": 16,
+      "summary": {
+        "mambacue": {
+          "mse": 0.0016047764892174634,
+          "smooth_neutral": 0.0005947344160475856,
+          "smooth_opponent": 0.0004792504474483795,
+          "detail_neutral": 0.0004196052138997692,
+          "detail_opponent": 0.00011118641182172954
+        },
+        "candidate": {
+          "mse": 0.006725983283680576,
+          "smooth_neutral": 0.004125446375117588,
+          "smooth_opponent": 0.0016525480643287155,
+          "detail_neutral": 0.0007310891130731826,
+          "detail_opponent": 0.00021689973116109206
+        }
+      },
+      "candidate_excess": {
+        "mse": 0.005121206794463113,
+        "smooth_neutral": 0.003530711959070002,
+        "smooth_opponent": 0.001173297616880336,
+        "detail_neutral": 0.00031148389917341345,
+        "detail_opponent": 0.00010571331933936253
+      },
+      "paired_image_interval_95": {
+        "mse": [
+          0.0043821140521868515,
+          0.0059265915873161846
+        ],
+        "smooth_neutral": [
+          0.0029135616610889703,
+          0.004177200669866353
+        ],
+        "smooth_opponent": [
+          0.0009517780870470192,
+          0.0014235227776753653
+        ],
+        "detail_neutral": [
+          0.00028174760145900207,
+          0.00034483140357615023
+        ],
+        "detail_opponent": [
+          9.520854167016566e-05,
+          0.00011655923961936715
+        ]
+      }
+    },
+    "32": {
+      "manifest_sha256": "2811158e47e7eebd42bfa62ca5777a20259c19889947dee95db382211082df46",
+      "images": 428,
+      "cell_side": 32,
+      "summary": {
+        "mambacue": {
+          "mse": 0.0016047764892174634,
+          "smooth_neutral": 0.0005647203150141015,
+          "smooth_opponent": 0.00044329512280065454,
+          "detail_neutral": 0.00044961931493325206,
+          "detail_opponent": 0.0001471417364694536
+        },
+        "candidate": {
+          "mse": 0.006725983283680576,
+          "smooth_neutral": 0.003925295540131576,
+          "smooth_opponent": 0.0015476280806263672,
+          "detail_neutral": 0.0009312399480591772,
+          "detail_opponent": 0.00032181971486343683
+        }
+      },
+      "candidate_excess": {
+        "mse": 0.005121206794463113,
+        "smooth_neutral": 0.0033605752251174748,
+        "smooth_opponent": 0.0011043329578257128,
+        "detail_neutral": 0.00048162063312592515,
+        "detail_opponent": 0.00017467797839398322
+      },
+      "paired_image_interval_95": {
+        "mse": [
+          0.0043821140521868515,
+          0.0059265915873161846
+        ],
+        "smooth_neutral": [
+          0.0027598937381450228,
+          0.003986404901446628
+        ],
+        "smooth_opponent": [
+          0.000891448241947788,
+          0.0013480926815270919
+        ],
+        "detail_neutral": [
+          0.00043238451624753237,
+          0.0005373371898240211
+        ],
+        "detail_opponent": [
+          0.00015711949858927433,
+          0.00019346046970579415
+        ]
+      }
+    },
+    "256": {
+      "manifest_sha256": "2811158e47e7eebd42bfa62ca5777a20259c19889947dee95db382211082df46",
+      "images": 428,
+      "cell_side": 256,
+      "summary": {
+        "mambacue": {
+          "mse": 0.0016047764892174634,
+          "smooth_neutral": 0.0004372710130747201,
+          "smooth_opponent": 0.000265879289962856,
+          "detail_neutral": 0.00057706861687273,
+          "detail_opponent": 0.00032455756930730025
+        },
+        "candidate": {
+          "mse": 0.006725983283680576,
+          "smooth_neutral": 0.0024559519474221794,
+          "smooth_opponent": 0.000921615008835893,
+          "detail_neutral": 0.0024005835407691525,
+          "detail_opponent": 0.0009478327866540019
+        }
+      },
+      "candidate_excess": {
+        "mse": 0.005121206794463113,
+        "smooth_neutral": 0.0020186809343474593,
+        "smooth_opponent": 0.000655735718873037,
+        "detail_neutral": 0.0018235149238964225,
+        "detail_opponent": 0.0006232752173467017
+      },
+      "paired_image_interval_95": {
+        "mse": [
+          0.0043821140521868515,
+          0.0059265915873161846
+        ],
+        "smooth_neutral": [
+          0.0015410032775177282,
+          0.0025464988393372173
+        ],
+        "smooth_opponent": [
+          0.00047474927390499434,
+          0.0008709708271238006
+        ],
+        "detail_neutral": [
+          0.0015956102889615714,
+          0.00207711702322872
+        ],
+        "detail_opponent": [
+          0.0005501997709658414,
+          0.0006974297587674009
+        ]
+      }
+    }
+  },
+  "matched_validation": {
+    "n": 128,
+    "split_sha256": "5b3b967a6870c5a3752f18c40624ae50c0578c03f5e759f275b28f2931fb9975",
+    "historical_mambacue": {
+      "psnr": 30.608176045119762,
+      "ssim": 0.9437527153640985,
+      "mse": 0.0020942530466641074
+    },
+    "global_probe": {
+      "base": {
+        "mse": 0.011071505421796246,
+        "psnr": 22.00099939107895,
+        "ssim": 0.8641304676420987,
+        "global_neutral": 0.0045512432550599054,
+        "local_neutral": 0.0019868684860969606,
+        "detail_neutral": 0.000955950256972033,
+        "global_chroma": 0.002374071011742865,
+        "local_chroma": 0.0009637061001994147,
+        "detail_chroma": 0.00023966643509312825
+      },
+      "fitted": {
+        "mse": 0.00874873931206821,
+        "psnr": 21.981019482016563,
+        "ssim": 0.8639660086482763,
+        "global_neutral": 0.0033282185732112102,
+        "local_neutral": 0.0019895579858437255,
+        "detail_neutral": 0.0009573044720327807,
+        "global_chroma": 0.001270865044811017,
+        "local_chroma": 0.0009629250830333987,
+        "detail_chroma": 0.0002398680862293525
+      },
+      "target_mean": {
+        "mse": 0.004125225257894272,
+        "psnr": 25.171870186924934,
+        "ssim": 0.8777089947834611,
+        "global_neutral": 2.662146508592205e-07,
+        "local_neutral": 0.001980589197997374,
+        "detail_neutral": 0.0009556194621027483,
+        "global_chroma": 5.153911586565675e-07,
+        "local_chroma": 0.000949777172298831,
+        "detail_chroma": 0.00023845786243079737
+      }
+    },
+    "global_probe_fit_count": 384,
+    "fitted_global_psnr_better_images": 61,
+    "fitted_global_mean_delta_psnr": -0.01997990906238556,
+    "fitted_global_median_delta_psnr": -0.06382560729980469
+  }
+}

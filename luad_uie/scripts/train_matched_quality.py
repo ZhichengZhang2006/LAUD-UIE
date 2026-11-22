@@ -20,6 +20,7 @@ from ..trainers.engine import validate
 
 
 MODELS = ('packed_rgb', 'packed_bands', 'mambacue')
+EXPOSURE_ARM = 'packed_exposure'
 
 
 def loss_by_band(prediction, reference):
@@ -31,6 +32,14 @@ def loss_by_band(prediction, reference):
     chroma = (lab_chroma(F.avg_pool2d(prediction, 2))
               - lab_chroma(F.avg_pool2d(reference, 2))).abs().mean()
     return .25 * detail + .15 * chroma
+
+
+def loss_by_exposure(prediction, reference):
+    """Give separate supervision to image exposure and spatial lighting error."""
+    neutral = (prediction - reference).mean(dim=1, keepdim=True)
+    image_bias = neutral.mean(dim=(2, 3), keepdim=True)
+    lighting = F.avg_pool2d(neutral, 16) - image_bias
+    return .25 * image_bias.abs().mean() + .25 * lighting.abs().mean()
 
 
 def subset(rows, limit, seed):
@@ -76,8 +85,10 @@ def train(arm, fit, validation, output, args):
             optimizer.zero_grad(set_to_none=True)
             prediction = network(x)
             loss = reconstruction(prediction, target)
-            if arm == 'packed_bands':
+            if arm in ('packed_bands', EXPOSURE_ARM):
                 loss = loss + loss_by_band(prediction, target)
+            if arm == EXPOSURE_ARM:
+                loss = loss + loss_by_exposure(prediction, target)
             if not torch.isfinite(loss).item():
                 raise RuntimeError(f'{arm}: non-finite loss at step {step}')
             loss.backward()
@@ -107,6 +118,8 @@ def train(arm, fit, validation, output, args):
 
 
 def run(args):
+    # Set before the first CUDA call, so the deterministic Lab projection can use cuBLAS.
+    os.environ.setdefault('CUBLAS_WORKSPACE_CONFIG', ':4096:8')
     fit = read_manifest(args.train)
     validation = read_manifest(args.val)
     validate_splits({'train':fit, 'val':validation})
@@ -121,10 +134,26 @@ def run(args):
         'mamba_source':{name:file_hash(args.mamba/name) for name in ('model.py','encoder.py','prior.py','output_heads.py')},
         'epochs':args.epochs, 'seed':args.seed,
         'torch':torch.__version__, 'gpu':torch.cuda.get_device_name(),
-        'arms':list(MODELS), 'train_size':256, 'batch':2,
+        'cublas_workspace_config':os.environ['CUBLAS_WORKSPACE_CONFIG'],
+        'arms':list(args.arms), 'train_size':256, 'batch':2,
     }
     (args.output/'provenance.json').write_text(json.dumps(provenance, indent=2))
-    for arm in MODELS:
+    if args.historical_mamba:
+        opt = args.mamba/'supplement_20261112/protocol/historical_checkpoints.json'
+        historical = json.loads(opt.read_text(encoding='utf-8'))['LSUI']
+        weights = Path(historical['path'])
+        if file_hash(weights) != historical['sha256']:
+            raise ValueError('Historical MambaCue state has an unexpected hash')
+        mamba = load_network('mambacue', args.mamba).cuda().eval()
+        mamba.load_state_dict(torch.load(weights, map_location='cpu', weights_only=True))
+        val_loader = DataLoader(PairedDataset(validation, resize=256), batch_size=1, num_workers=2)
+        record = {'mambacue_sha256':historical['sha256'],
+                  'val_ids':provenance['val_ids'], 'val':validate(mamba, val_loader, 'cuda:0')}
+        (args.output/'historical_mambacue.json').write_text(json.dumps(record, indent=2))
+        print(json.dumps(record['val']), flush=True)
+        del mamba
+        torch.cuda.empty_cache()
+    for arm in args.arms:
         try:
             train(arm, fit, validation, args.output/arm, args)
         except RuntimeError as exc:
@@ -145,4 +174,6 @@ if __name__ == '__main__':
     parser.add_argument('--val-limit', type=int, default=128)
     parser.add_argument('--epochs', type=int, default=12)
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--arms', nargs='+', choices=(*MODELS, EXPOSURE_ARM), default=MODELS)
+    parser.add_argument('--historical-mamba', action='store_true')
     run(parser.parse_args())
