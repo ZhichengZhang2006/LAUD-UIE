@@ -81,7 +81,8 @@ def train(config, output_dir, resume=None):
     def loader(name, training=False, batch_size=None):
         # Independent generator means utility sampling never perturbs training shuffle.
         generator = torch.Generator().manual_seed(config['seed']+list(split_rows).index(name))
-        resize = config.get('working_size')
+        resize = (config.get('validation_working_size', config.get('working_size'))
+                  if name == 'val' else config.get('working_size'))
         dataset = PairedDataset(split_rows[name], config['crop_size'] if training and resize is None else None,
                                 training, resize=resize)
         return DataLoader(dataset, batch_size=batch_size or (config['batch_size'] if training else 1),
