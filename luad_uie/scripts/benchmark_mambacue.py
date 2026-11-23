@@ -49,7 +49,9 @@ def main(output, student_checkpoint=None, uieb_audit=None):
         checkpoint = {'path': str(student_checkpoint), 'sha256': digest(student_checkpoint)}
         state = torch.load(student_checkpoint, map_location='cpu', weights_only=True)
         if audit:
-            run = json.loads((student_checkpoint.parent.parent/'provenance.json').read_text())
+            fusion = state['config']['student'].get('architecture') == 'backbone_fusion'
+            filename = 'protocol.json' if fusion else 'provenance.json'
+            run = json.loads((student_checkpoint.parent.parent/filename).read_text())
             if any(run[f'{split}_sha256'] != audit['csv_sha256'][split] for split in ('train', 'val')):
                 raise ValueError('UIEB testing requires a checkpoint from the audited UIEB training run')
         model = build_student(state['config']['student'])

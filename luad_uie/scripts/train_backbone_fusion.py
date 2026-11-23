@@ -11,6 +11,7 @@ from ..losses import ReconstructionLoss
 from ..losses.component_distillation import component_distillation
 from ..losses.ordinal_structure import ordinal_structure, structure_metrics
 from ..models.backbone_fusion import BackboneFusion
+from ..models.scene_initialization import fit_components, initialize_head
 from ..runtime import append_json, file_hash, seed_all
 from ..trainers.engine import validate
 from .train_matched_quality import atomic_checkpoint, subset
@@ -39,6 +40,17 @@ def train_arm(arm, args, fit, validation, provenance):
     loader = DataLoader(PairedDataset(fit, resize=256, augment=True), batch_size=args.batch,
                         shuffle=True, generator=generator, num_workers=2)
     val_loader = DataLoader(PairedDataset(validation, resize=256), batch_size=1, num_workers=2)
+    if args.head_fit_images:
+        model.eval()
+        calibration = DataLoader(PairedDataset(fit[:args.head_fit_images], resize=256), batch_size=1)
+        with torch.no_grad():
+            def feature_pairs():
+                for batch in calibration:
+                    image = batch['input'].cuda()
+                    yield model.backbone(image), batch['target'].cuda() - image
+            initialize_head(model.head, fit_components(feature_pairs()))
+            initial_scores = validate(model, val_loader, 'cuda', structure_metrics)
+        (out / 'initial.json').write_text(json.dumps(initial_scores, indent=2))
     optimizer = torch.optim.AdamW([{'params': model.backbone.parameters(), 'lr': 2e-5},
                                    {'params': model.head.parameters(), 'lr': 2e-4}], weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, eta_min=2e-6)
@@ -92,12 +104,18 @@ def main():
     for name in ('train', 'val', 'weights', 'output'):
         parser.add_argument(name, type=Path)
     parser.add_argument('--arms', nargs='+', choices=ARMS, default=list(ARMS))
-    parser.add_argument('--epochs', type=int, default=200)
+    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--smoke-test', action='store_true',
+                        help='Allow a shorter engineering check, ineligible for performance comparison')
     parser.add_argument('--batch', type=int, default=1)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--train-limit', type=int, default=0)
     parser.add_argument('--val-limit', type=int, default=0)
+    parser.add_argument('--head-fit-images', type=int, default=0,
+                        help='Initialize the existing RGB head using this many training pairs')
     args = parser.parse_args()
+    if args.epochs < 100 and not args.smoke_test:
+        parser.error('Formal comparisons require at least 100 epochs per arm')
     if min(args.epochs, args.batch) < 1 or min(args.train_limit, args.val_limit) < 0:
         parser.error('Invalid budget or subset size')
     if len(set(args.arms)) != len(args.arms):
@@ -111,10 +129,13 @@ def main():
     validate_splits({'train': fit, 'val': val})
     fit = subset(fit, args.train_limit, args.seed)
     val = subset(val, args.val_limit, args.seed)
+    if args.head_fit_images and not 2 <= args.head_fit_images <= len(fit):
+        parser.error('Head calibration requires between two images and the full training split')
     args.output.mkdir(parents=True, exist_ok=False)
     provenance = dict(version='1.0', weights_sha256=fingerprint, train_sha256=file_hash(args.train),
                       val_sha256=file_hash(args.val), train_ids=[x['id'] for x in fit],
-                      val_ids=[x['id'] for x in val], gpu=torch.cuda.get_device_name(),
+                      val_ids=[x['id'] for x in val], head_fit_ids=[x['id'] for x in fit[:args.head_fit_images]],
+                      gpu=torch.cuda.get_device_name(),
                       parameters={k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()})
     (args.output / 'protocol.json').write_text(json.dumps(provenance, indent=2))
     for arm in args.arms:

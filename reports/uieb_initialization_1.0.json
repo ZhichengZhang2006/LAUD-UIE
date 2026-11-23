@@ -1,0 +1,31 @@
+{
+  "source_run": "UIEB_FULL_s0",
+  "epochs_budget": 200,
+  "original_ema_sha256": "04620775d41783c8bfb7bfb63128283d31935a7a1ba5a9003f2572fad128af8d",
+  "backbone_sha256": "dc43cb10dd8fa4940b4f12eb0a315fe8d1c6c05f733bdd6da137c5be234239fc",
+  "identical_tensors": 104,
+  "split_sha256": {
+    "train": "b9b97d86bd8b8d1bc31a3b9092dd682239cb5abb6e64f58caec9455dc3d9b744",
+    "val": "84d1b69ff29fea8abe1081fdf9bdc4a7a7fd130dd9518130a13fbf823cf51d55",
+    "test": "7710538d6568c0d619f7bdfbae173ced10268de84b19ecc2dbe77e69d74e6e29"
+  },
+  "candidate_manifest_sha256": {
+    "test": "245e49bc1a3c3548f9ab77eeb08dd9bdbe560fc52b5a83c19b7ab330e5bdfa5f",
+    "val": "297db5a1b875f0230b90570da6cb1d15613b03e9ed5dc65f12a46a0a4a3aeae0",
+    "train": "0be695526b3ff31b56f70844feabab6b3752fb18bb066bf81284535e66cc380b"
+  },
+  "sizes": {
+    "test": 89,
+    "val": 88,
+    "train": 712
+  },
+  "exclusions": {
+    "test": [],
+    "val": [],
+    "train": []
+  },
+  "no_reference_sizes": {
+    "CH60": 60,
+    "U45": 45
+  }
+}
