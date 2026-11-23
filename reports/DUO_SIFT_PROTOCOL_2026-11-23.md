@@ -15,3 +15,15 @@ SIFT 用同一 OpenCV 默认参数，在 1,111 张图上记录平均检出数量
 在 HVI 中运行 `python -m luad_uie.scripts.benchmark_duo_sift CANDIDATE_CKPT OUTPUT`。指定 `--smoke 8` 进行八图流程检查。正式验收入口 `python -m luad_uie.scripts.run_candidate_acceptance CANDIDATE_CKPT BASELINE_QUALITY OUTPUT` 依次生成有参考与无参考质量、复测 GPU 前向、DUO 和 SIFT 结果。最终摘要会核对权重与输入尺寸，从正式全量记录读取应用指标。
 
 服务器实验位于 `/home/user/luad_uie_prototype_20261031/stages/scene_stage_20261123`。冻结检测器使用已核验的本地 YOLOv5 v7 源码和权重。HVI 缺失的检测依赖已装入实验目录的 `duo_deps`，正式运行可将其加入 `PYTHONPATH`。原图、检测框、逐图 SIFT 记录及权重保留在服务器。八图流程试验已走通，科学比较采用全量输出。
+
+## 全量评估结果
+
+下表使用已完成 100 轮的旧宽度 40 整图上下文学生。应用、质量和计时的候选权重 SHA256 均为 `c2a296769ffd9a5c5b8c986b31c08ddffd82dd41ba7dc917c9d0ab0a29f6ef16`。
+
+| 输入 | DUO AP @[.50:.95] ↑ | DUO AP50 ↑ | SIFT 平均检出点数 ↑ | SIFT 平均几何重复检出率 ↑ |
+| --- | ---: | ---: | ---: | ---: |
+| 原图 | 0.13311 | 0.31809 | 136.86 | 85.79% |
+| 历史 MambaCue | 0.09124 | 0.22421 | 487.35 | 81.39% |
+| 旧整图上下文候选 | 0.07798 | 0.18731 | 436.68 | 82.84% |
+
+旧候选相对 MambaCue 的平均重复检出率增加 1.45 个百分点，平均关键点数少 50.67，DUO AP 低 1.33 个百分点。同一冻结检测器的原图 AP 高于两个增强模型。原图的 256 个变换对中有 246 个可计算重复率，两个增强组均有 256 个。质量指标胜率为 0/10。对比结果记录于服务器 `duo_sift_context_full/duo_sift.json`，第一阶段的零均值残差权重尚未参加这组测试。

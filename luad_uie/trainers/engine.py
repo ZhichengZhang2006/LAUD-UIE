@@ -51,7 +51,7 @@ def validate(student, loader, device, extra_metrics=None):
         prediction = student(x)
         batch_metrics = metrics(prediction, target)
         if extra_metrics is not None:
-            batch_metrics.update(extra_metrics(prediction, target))
+            batch_metrics.update(extra_metrics(prediction, target, x))
         for key, values in batch_metrics.items():
             sums[key] = sums.get(key, 0.) + values.sum().item()
         count += x.shape[0]

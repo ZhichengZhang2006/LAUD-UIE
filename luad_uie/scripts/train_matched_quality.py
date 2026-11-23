@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 
 from ..datasets import PairedDataset, read_manifest, validate_splits
 from ..losses import ReconstructionLoss
+from ..losses.ordinal_structure import full_gradient, ordinal_structure, structure_metrics
 from ..losses.phase_consistency import phase_edge_loss, shift
 from ..models.knowledge_views import lab_chroma
 from ..models.selective_student import build_student
@@ -25,7 +26,8 @@ EXPOSURE_ARM = 'packed_exposure'
 CONTEXT_ARM = 'packed_context'
 PHASE_ARMS = ('packed_phase_pair', 'packed_phase_consistency')
 SCENE_ARMS = ('scene_unconstrained', 'scene_centered', 'scene_supervised')
-PACKED_ARMS = ('packed_rgb', 'packed_bands', EXPOSURE_ARM, CONTEXT_ARM, *PHASE_ARMS, *SCENE_ARMS)
+STRUCTURE_ARMS = ('structure_reconstruction', 'structure_gradient', 'structure_ordinal')
+PACKED_ARMS = ('packed_rgb', 'packed_bands', EXPOSURE_ARM, CONTEXT_ARM, *PHASE_ARMS, *SCENE_ARMS, *STRUCTURE_ARMS)
 
 
 def loss_by_band(prediction, reference):
@@ -55,7 +57,7 @@ def scene_supervision(features, image, reference):
     return .25 * (offset_error + spatial_error)
 
 
-def scene_metrics(prediction, reference):
+def scene_metrics(prediction, reference, image=None):
     error = prediction - reference
     offset = error.mean(dim=(-2, -1), keepdim=True)
     return {
@@ -80,12 +82,12 @@ def student_config(arm, width):
     return config
 
 
-def load_network(arm, mamba_root, width):
+def load_network(arm, mamba_root, width, base_arm=None):
     if arm == 'mambacue':
         sys.path.insert(0, str(mamba_root))
         from model import myModel
         return myModel(use_checkpoint=True)
-    return build_student(student_config(arm, width))
+    return build_student(student_config(base_arm or arm, width))
 
 
 def atomic_checkpoint(data, path):
@@ -102,8 +104,15 @@ def train(arm, fit, validation, output, args):
     train_loader = DataLoader(PairedDataset(fit, augment=True, resize=256), batch_size=2,
                               shuffle=True, generator=generator, num_workers=2, pin_memory=True)
     val_loader = DataLoader(PairedDataset(validation, resize=256), batch_size=1, num_workers=2)
-    network = load_network(arm, args.mamba, args.width).to(device)
-    if args.initial_checkpoint:
+    base_arm = args.base_arm if arm in STRUCTURE_ARMS else arm
+    config = student_config(base_arm, args.width)
+    network = load_network(arm, args.mamba, args.width, base_arm=base_arm).to(device)
+    if arm in STRUCTURE_ARMS:
+        saved = torch.load(args.initial_checkpoint, map_location='cpu', weights_only=True)
+        if saved['arm'] != base_arm or saved['config']['student'] != config:
+            raise ValueError('Structure arms must start from the specified scene arm at the same width')
+        network.load_state_dict(saved['student'])
+    elif args.initial_checkpoint:
         saved = torch.load(args.initial_checkpoint, map_location='cpu', weights_only=True)
         initial_shape = {'architecture':'packed', 'width':args.width, 'phase_residual':True}
         if any(saved['config']['student'].get(k) != v for k, v in initial_shape.items()):
@@ -124,12 +133,16 @@ def train(arm, fit, validation, output, args):
         for pair in train_loader:
             x, target = (pair[field].to(device, non_blocking=True) for field in ('input', 'target'))
             optimizer.zero_grad(set_to_none=True)
-            if arm == 'scene_supervised':
+            if base_arm == 'scene_supervised':
                 prediction, features = network(x, return_features=True)
                 loss = reconstruction(prediction, target) + scene_supervision(features, x, target)
             else:
                 prediction = network(x)
                 loss = reconstruction(prediction, target)
+            if arm == 'structure_gradient':
+                loss = loss + .2 * full_gradient(prediction, target)
+            if arm == 'structure_ordinal':
+                loss = loss + .2 * ordinal_structure(prediction, x, target)
             if arm in PHASE_ARMS:
                 dx, dy = ((1, 0), (0, 1), (1, 1))[step % 3]
                 moved = network(shift(x, dx, dy))
@@ -150,7 +163,13 @@ def train(arm, fit, validation, output, args):
             if step % 50 == 0:
                 print(json.dumps({'arm':arm, 'step':step, 'epoch':epoch+1}), flush=True)
         # Measure rendered outputs so any loss of orthogonality from clamping is visible.
-        val = validate(network, val_loader, device, scene_metrics if arm in SCENE_ARMS else None)
+        extra_metrics = None
+        if arm in SCENE_ARMS:
+            extra_metrics = scene_metrics
+        elif arm in STRUCTURE_ARMS:
+            def extra_metrics(prediction, reference, image):
+                return {**scene_metrics(prediction, reference), **structure_metrics(prediction, reference, image)}
+        val = validate(network, val_loader, device, extra_metrics)
         report = {'arm':arm, 'epoch':epoch+1, 'steps':step, 'val':val,
                   'training_loss':running_loss/len(train_loader),
                   'seconds':time.monotonic()-started, 'peak_allocated':torch.cuda.max_memory_allocated(device)}
@@ -159,7 +178,7 @@ def train(arm, fit, validation, output, args):
         scheduler.step()
         state = {'student':network.state_dict(), 'arm':arm, 'epoch':epoch+1, 'val':val,
                  'optimizer':optimizer.state_dict(), 'scheduler':scheduler.state_dict(),
-                 'config':{'student':student_config(arm, args.width),
+                 'config':{'student':config, 'base_arm':base_arm,
                            'data':{'train':str(args.train),'val':str(args.val)}}}
         atomic_checkpoint(state, output/'last.pt')
         if val['psnr'] > best:
@@ -170,8 +189,12 @@ def train(arm, fit, validation, output, args):
 def run(args):
     # Set before the first CUDA call, so the deterministic Lab projection can use cuBLAS.
     os.environ.setdefault('CUBLAS_WORKSPACE_CONFIG', ':4096:8')
-    if args.initial_checkpoint and any(arm not in PHASE_ARMS for arm in args.arms):
-        raise ValueError('This initialization option is for the paired phase ablation')
+    structure = any(arm in STRUCTURE_ARMS for arm in args.arms)
+    if structure:
+        if not args.base_arm or not args.initial_checkpoint or any(arm not in STRUCTURE_ARMS for arm in args.arms):
+            raise ValueError('Structure-only runs require --base-arm and --initial-checkpoint')
+    elif args.base_arm or (args.initial_checkpoint and any(arm not in PHASE_ARMS for arm in args.arms)):
+        raise ValueError('Checkpoint initialization is for matched phase and structure ablations')
     fit = read_manifest(args.train)
     validation = read_manifest(args.val)
     validate_splits({'train':fit, 'val':validation})
@@ -190,7 +213,7 @@ def run(args):
         'torch':torch.__version__, 'gpu':torch.cuda.get_device_name(),
         'cublas_workspace_config':os.environ['CUBLAS_WORKSPACE_CONFIG'],
         'initial_checkpoint_sha256':file_hash(args.initial_checkpoint) if args.initial_checkpoint else None,
-        'arms':list(args.arms), 'train_size':256, 'batch':2, 'student_width':args.width,
+        'base_arm':args.base_arm, 'arms':list(args.arms), 'train_size':256, 'batch':2, 'student_width':args.width,
     }
     (args.output/'provenance.json').write_text(json.dumps(provenance, indent=2))
     if args.historical_mamba:
@@ -232,5 +255,6 @@ if __name__ == '__main__':
     parser.add_argument('--arms', nargs='+', choices=(*PACKED_ARMS, 'mambacue'), default=MODELS)
     parser.add_argument('--width', type=int, default=24)
     parser.add_argument('--initial-checkpoint',type=Path)
+    parser.add_argument('--base-arm', choices=SCENE_ARMS)
     parser.add_argument('--historical-mamba', action='store_true')
     run(parser.parse_args())
