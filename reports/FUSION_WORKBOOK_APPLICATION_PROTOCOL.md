@@ -8,3 +8,9 @@
 来源文件为旧项目的 downstream/results/results_bundle.json、downstream/results/ch60_results_bundle.json、downstream/run_ch60.py、downstream/infer.py 与 downstream/features.py。MambaCue 对照数值取自 UIE-data.xlsx。较早项目中的重测结果属于历史记录。
 
 候选的 CH60 SIFT 结果由 `score_fusion_uieb` 写入 `ch60_sift.json`，含图像 ID、逐图关键点数、权重指纹、OpenCV 版本和工作簿单元格。正式评分要求完成至少 100 轮且通过 UIEB 训练及图像清单校验。
+
+## 候选 DUO 流程
+
+`export_fusion_duo` 先核验七组 LSUI 的完整训练记录和所选权重，然后按服务器 `duo_workbook_manifest.json` 导出 400 张 RGB PNG。增强输入为 OpenCV INTER_AREA 直接缩放的 256×256 图。只做缩放时，归一化检测框坐标保持原值。导出清单记录候选权重、每张增强图和每份标签的指纹。
+
+`run_fusion_duo_workbook.sh` 使用历史归档中的 YOLOv5 v7 与 `eval_yolo.py`，后者在服务器保存为 `eval_yolo_workbook.py`。脚本核验初始化权重与评估器的 SHA256，训练 300 轮后才读取候选检测器的测试指标。训练中的验证路径指向训练图像，80 张测试图在最终独立评分时使用。增强器的 256 输入与检测器的 640 输入分别记录。与历史分数并列展示时，需说明历史增强阶段保留图像比例，而新版增强阶段采用 256×256 直接缩放。
