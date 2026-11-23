@@ -45,6 +45,9 @@ class SelectiveStudent(Student):
 
 def build_student(config):
     name = config.get('architecture', 'unet')
+    if name == 'backbone_fusion':
+        from .backbone_fusion import BackboneFusion
+        return BackboneFusion(centered=config['centered'])
     if name == 'unet':
         return Student(config['width'])
     if name == 'selective':

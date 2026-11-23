@@ -50,7 +50,7 @@ def evaluate(checkpoint, manifest, output, device='cuda', baseline=None, save_im
     out = Path(output)
     out.mkdir(parents=True, exist_ok=False)
     rows = []
-    for batch in DataLoader(PairedDataset(records), batch_size=1):
+    for batch in DataLoader(PairedDataset(records, resize=config.get('evaluation_resize')), batch_size=1):
         x = batch['input'].to(device)
         # Warm up per shape; timing excludes IO, transfer and metrics, batch=1.
         for _ in range(3):

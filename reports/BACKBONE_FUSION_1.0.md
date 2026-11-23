@@ -41,3 +41,16 @@ python -m luad_uie.scripts.train_backbone_fusion TRAIN_CSV VAL_CSV \
 | UFO-120 | 0.8794 | 28.6144 |
 | EUVP-s | 0.83999 | 25.7496 |
 | EUVP-d | 0.91116 | 22.6687 |
+
+## 已执行的实验
+
+2026-11-23，school-gpu2 多次 SSH 握手超时，使用可访问的备用 school-gpu，在 HVI 环境的 GPU 0 上执行。工作目录为 `/home/user/luad_fusion_1_0`。已用包内 EMA 主干权重在 4 张 LSUI 训练图、2 张 LSUI 验证图上跑通五组，每组 1 轮。各组均完成反向传播、验证及最佳权重保存，结束标记为 `smoke/COMPLETE`。固定蒸馏组的全局与空间平均权重为 0.500 / 0.500，效用蒸馏组为 0.722 / 0.278。这些权重验证了路由会随数据变化。两张图的得分不能据此判断质量提升。
+
+随后在同一服务器启动正式的第一轮开发比较，目录为 `development/`。采用经去重的 LSUI 清单，固定选取 512 张训练图和 128 张验证图，种子 42，batch 1，每组 12 轮。除所列实验变量外，各组沿用同一初始化、训练图像顺序及优化器预算。该比较用于筛选，完整数据及长预算下的质量结论须另行验证。
+
+开发实验产生的最佳检查点可通过项目通用入口重新加载并导出 RGB 结果。以下只评估新模型，评估分辨率由 1.0 检查点固定为 256×256。
+
+```sh
+python -m luad_uie.scripts.evaluate --checkpoint development/utility/best.pt \
+    --manifest VAL_CSV --output /home/user/luad_fusion_1_0/candidate_val --save-images
+```

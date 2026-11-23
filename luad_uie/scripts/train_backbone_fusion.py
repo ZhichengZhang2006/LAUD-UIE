@@ -75,7 +75,12 @@ def train_arm(arm, args, fit, validation, provenance):
         scheduler.step()
         state = dict(student=model.state_dict(), epoch=epoch, arm=arm, val=scores,
                      optimizer=optimizer.state_dict(), scheduler=scheduler.state_dict(),
-                     version='1.0', seed=args.seed, backbone_sha256=provenance['weights_sha256'])
+                     version='1.0', seed=args.seed, backbone_sha256=provenance['weights_sha256'],
+                     config={'student': {'architecture': 'backbone_fusion', 'centered': arm != 'free'},
+                             'experiment': arm, 'evaluation_resize': 256, 'seed': args.seed,
+                             'epochs': args.epochs, 'batch_size': args.batch,
+                             'teacher': {'mode': 'checkpoint' if teacher is not None else 'none'},
+                             'data': {'train': str(args.train.resolve()), 'val': str(args.val.resolve())}})
         atomic_checkpoint(state, out / 'last.pt')
         if scores['psnr'] > best:
             best = scores['psnr']
