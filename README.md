@@ -1,5 +1,7 @@
 # LUAD-UIE PyTorch 原型
 
+[1.0 主干融合模型、训练入口与工作簿对照](reports/BACKBONE_FUSION_1.0.md)
+
 根据本目录的 `LUAD_UIE.md` 实现（用户所述 `LUAD_UIE_初步框架设计.md` 未以该文件名出现）。这是可训练的软件原型，**不是已验证的方法、创新性结论或 SOTA 结果**。
 
 ## 已实现

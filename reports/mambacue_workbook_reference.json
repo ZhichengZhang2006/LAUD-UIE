@@ -1,0 +1,328 @@
+{
+  "source": "UIE-data.xlsx",
+  "sha256": "c4dac12f0823d48b6eef5c7ce7f67c72979486d5bcd0d41bd7e44275d32da2a3",
+  "measurements": [
+    {
+      "sheet": "Sheet1",
+      "cell": "B12",
+      "group": "UIEB",
+      "metric": "SSIM↑",
+      "value": 0.9245
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "C12",
+      "group": "UIEB",
+      "metric": "PSNR↑",
+      "value": 24.3785
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "D12",
+      "group": "UIEB",
+      "metric": "MSE↓",
+      "value": 366.432793
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "E12",
+      "group": "LSUI",
+      "metric": "SSIM↑",
+      "value": 0.9359
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "F12",
+      "group": "LSUI",
+      "metric": "PSNR↑",
+      "value": 31.4088
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "G12",
+      "group": "LSUI",
+      "metric": "MSE↓",
+      "value": 98.340062
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "H12",
+      "group": "UFO-120",
+      "metric": "SSIM↑",
+      "value": 0.8794
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "I12",
+      "group": "UFO-120",
+      "metric": "PSNR↑",
+      "value": 28.6144
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "J12",
+      "group": "UFO-120",
+      "metric": "MSE↓",
+      "value": 112.8465
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "K12",
+      "group": "EUVP-s",
+      "metric": "SSIM",
+      "value": 0.8399903725271356
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "L12",
+      "group": "EUVP-s",
+      "metric": "PSNR",
+      "value": 25.74963311871845
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "M12",
+      "group": "EUVP-s",
+      "metric": "MSE",
+      "value": 202.95086882604096
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "N12",
+      "group": "EUVP-s",
+      "metric": "UIQM",
+      "value": 3.1083344068176726
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "O12",
+      "group": "EUVP-s",
+      "metric": "UCIQE",
+      "value": 0.3434772374555788
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "P12",
+      "group": "EUVP-d",
+      "metric": "SSIM",
+      "value": 0.9111635256457973
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "Q12",
+      "group": "EUVP-d",
+      "metric": "PSNR",
+      "value": 22.66874933444262
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "R12",
+      "group": "EUVP-d",
+      "metric": "MSE",
+      "value": 540.9587259029108
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "S12",
+      "group": "EUVP-d",
+      "metric": "UIQM",
+      "value": 3.151603385403901
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "T12",
+      "group": "EUVP-d",
+      "metric": "UCIQE",
+      "value": 0.3109561275473963
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "U12",
+      "group": "efficiency",
+      "metric": "Params",
+      "value": "1.855M"
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "V12",
+      "group": "efficiency",
+      "metric": "FLOPs",
+      "value": 164.491952128
+    },
+    {
+      "sheet": "Sheet1",
+      "cell": "W12",
+      "group": "efficiency",
+      "metric": "Runtime (s/img)",
+      "value": 0.028857705752615447
+    },
+    {
+      "sheet": "Sheet2",
+      "cell": "B12",
+      "group": "C 60",
+      "metric": "UCIQE",
+      "value": 0.3675
+    },
+    {
+      "sheet": "Sheet2",
+      "cell": "C12",
+      "group": "C 60",
+      "metric": "NIQE",
+      "value": 5.1944
+    },
+    {
+      "sheet": "Sheet2",
+      "cell": "D12",
+      "group": "C 60",
+      "metric": "Uranker",
+      "value": 1.5467
+    },
+    {
+      "sheet": "Sheet2",
+      "cell": "E12",
+      "group": "C 60",
+      "metric": "Entropy",
+      "value": 7.3471
+    },
+    {
+      "sheet": "Sheet2",
+      "cell": "F12",
+      "group": "C 60",
+      "metric": "UIQM",
+      "value": 3.5132
+    },
+    {
+      "sheet": "Sheet2",
+      "cell": "G12",
+      "group": "U45",
+      "metric": "UCIQE",
+      "value": 0.3889
+    },
+    {
+      "sheet": "Sheet2",
+      "cell": "H12",
+      "group": "U45",
+      "metric": "NIQE",
+      "value": 4.144
+    },
+    {
+      "sheet": "Sheet2",
+      "cell": "I12",
+      "group": "U45",
+      "metric": "Uranker",
+      "value": 1.9722
+    },
+    {
+      "sheet": "Sheet2",
+      "cell": "J12",
+      "group": "U45",
+      "metric": "Entropy",
+      "value": 7.5508
+    },
+    {
+      "sheet": "Sheet2",
+      "cell": "K12",
+      "group": "U45",
+      "metric": "UIQM",
+      "value": 3.4487
+    },
+    {
+      "sheet": "Sheet4",
+      "cell": "B11",
+      "group": null,
+      "metric": "Params",
+      "value": 1866193
+    },
+    {
+      "sheet": "Sheet4",
+      "cell": "C11",
+      "group": null,
+      "metric": "FLOPs",
+      "value": 18334791200
+    },
+    {
+      "sheet": "Sheet4",
+      "cell": "D11",
+      "group": null,
+      "metric": "Running_time",
+      "value": 0.05885527
+    },
+    {
+      "sheet": "Sheet5",
+      "cell": "B11",
+      "group": null,
+      "metric": "Precision",
+      "value": 0.8774
+    },
+    {
+      "sheet": "Sheet5",
+      "cell": "C11",
+      "group": null,
+      "metric": "Recall",
+      "value": 0.5349
+    },
+    {
+      "sheet": "Sheet5",
+      "cell": "D11",
+      "group": null,
+      "metric": "mAP50",
+      "value": 0.6205
+    },
+    {
+      "sheet": "Sheet5",
+      "cell": "E11",
+      "group": null,
+      "metric": "mAP50:95",
+      "value": 0.4196
+    },
+    {
+      "sheet": "Sheet6",
+      "cell": "B11",
+      "group": null,
+      "metric": "Keypoints",
+      "value": 350.67
+    },
+    {
+      "sheet": "Sheet3",
+      "cell": "E28",
+      "group": "UIEB",
+      "metric": "UIQM",
+      "value": 3.4896
+    },
+    {
+      "sheet": "Sheet3",
+      "cell": "F28",
+      "group": "UIEB",
+      "metric": "UCIQE",
+      "value": 0.3812
+    },
+    {
+      "sheet": "Sheet3",
+      "cell": "J28",
+      "group": "LSUI",
+      "metric": "UIQM",
+      "value": 3.3546
+    },
+    {
+      "sheet": "Sheet3",
+      "cell": "K28",
+      "group": "LSUI",
+      "metric": "UCIQE",
+      "value": 0.3713
+    },
+    {
+      "sheet": "Sheet3",
+      "cell": "O28",
+      "group": "UFO-120",
+      "metric": "UIQM",
+      "value": 3.2182
+    },
+    {
+      "sheet": "Sheet3",
+      "cell": "P28",
+      "group": "UFO-120",
+      "metric": "UCIQE",
+      "value": 0.3921
+    }
+  ]
+}
