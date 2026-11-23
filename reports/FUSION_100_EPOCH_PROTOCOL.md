@@ -9,3 +9,9 @@ school-gpu2 在 `/home/user/luad_fusion_1_0/formal100` 依次执行七个 LSUI �
 正式对照先核对每组均有第 1 至 100 轮连续记录，再共同报告第 100 轮指标和完整预算内按验证 PSNR 选出的最佳轮次、PSNR 与同轮 SSIM。工作簿保留为完整 MambaCue 的唯一成绩来源。已有 UIEB 200 轮训练保留原预算，完成后才开展 UIEB、CH60、U45 正式评分。显存不足时中止并记录实际完成轮数。
 
 运行命令为 `sh run_fusion_100.sh`，使用 HVI 环境，详见同名脚本。
+
+## 完整 LSUI 数据对照
+
+在 school-gpu2 并行运行 `formal100/full_lsui_free`。自由残差组从相同 UIEB 主干权重和零输出头开始，使用完整的 2,711 张去重 LSUI 训练图、相同的 128 张验证图、同一种子和 100 轮优化计划。每轮样本量从 512 增至 2,711，总更新从 51,200 增至 271,100。这项对照衡量相同轮数下扩大数据规模的综合影响，数据覆盖与更新次数同时变化。
+
+两项训练全部完成后使用 `python -m luad_uie.scripts.summarize_fusion_100 formal100 full_data_summary.json --include-full-data`。汇总会核对两个实验的验证样本、顺序和清单指纹，以及 512 张训练图是否为完整训练序列的固定子集。正式评分和 DUO 导出入口均接受 `full_lsui_free/free`。

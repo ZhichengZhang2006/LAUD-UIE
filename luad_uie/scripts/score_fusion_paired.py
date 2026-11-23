@@ -38,7 +38,7 @@ def score(run, arm, audit_dir, workbook_file, output):
     from lpips import LPIPS
     from ..models.selective_student import build_student
 
-    completed = collect(run)
+    completed = collect(run, full_data=arm == 'full_lsui_free/free')
     selected = completed['arms'][arm]['best']
     checkpoint = run / arm / 'best.pt'
     if file_hash(checkpoint) != selected['sha256']:

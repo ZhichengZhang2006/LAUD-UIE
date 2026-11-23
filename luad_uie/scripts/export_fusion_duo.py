@@ -53,7 +53,7 @@ def export_images(model, records, output, device):
 def export(run, arm, manifest, output):
     from ..models.selective_student import build_student
 
-    formal = collect(run)
+    formal = collect(run, full_data=arm == 'full_lsui_free/free')
     score = formal['arms'][arm]['best']
     path = run / arm / 'best.pt'
     if file_hash(path) != score['sha256']:
