@@ -121,11 +121,23 @@ def train(arm, fit, validation, output, args):
             raise ValueError('Phase ablation expects the local packed checkpoint')
         network.load_state_dict(saved['student'])
     optimizer = torch.optim.AdamW(network.parameters(), lr=2e-4, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, eta_min=2e-5)
-    reconstruction = ReconstructionLoss(ssim_weight=.2)
+    start_epoch = 0
     best = -float('inf')
-    step = 0
-    for epoch in range(args.epochs):
+    if args.continue_checkpoint:
+        continuation = torch.load(args.continue_checkpoint, map_location='cpu', weights_only=True)
+        if continuation['arm'] != arm or continuation['config']['student'] != config:
+            raise ValueError('Continuation must keep the student architecture and losses')
+        network.load_state_dict(continuation['student'])
+        optimizer.load_state_dict(continuation['optimizer'])
+        start_epoch = continuation['epoch']
+        best = continuation['val']['psnr']
+        atomic_checkpoint(continuation, output/'best.pt')
+    # Hold the original terminal rate to measure the value of more optimization steps.
+    scheduler = None if args.continue_checkpoint else torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, args.epochs, eta_min=2e-5)
+    reconstruction = ReconstructionLoss(ssim_weight=.2)
+    step = start_epoch * len(train_loader)
+    for epoch in range(start_epoch, start_epoch + args.epochs):
         network.train()
         running_loss = 0.
         torch.cuda.reset_peak_memory_stats(device)
@@ -172,12 +184,14 @@ def train(arm, fit, validation, output, args):
         val = validate(network, val_loader, device, extra_metrics)
         report = {'arm':arm, 'epoch':epoch+1, 'steps':step, 'val':val,
                   'training_loss':running_loss/len(train_loader),
-                  'seconds':time.monotonic()-started, 'peak_allocated':torch.cuda.max_memory_allocated(device)}
+                  'seconds':time.monotonic()-started, 'peak_allocated':torch.cuda.max_memory_allocated(device),
+                  'lr':optimizer.param_groups[0]['lr']}
         append_json(output/'epochs.jsonl', report)
         print(json.dumps(report), flush=True)
-        scheduler.step()
+        if scheduler is not None:
+            scheduler.step()
         state = {'student':network.state_dict(), 'arm':arm, 'epoch':epoch+1, 'val':val,
-                 'optimizer':optimizer.state_dict(), 'scheduler':scheduler.state_dict(),
+                 'optimizer':optimizer.state_dict(), 'scheduler':scheduler.state_dict() if scheduler else None,
                  'config':{'student':config, 'base_arm':base_arm,
                            'data':{'train':str(args.train),'val':str(args.val)}}}
         atomic_checkpoint(state, output/'last.pt')
@@ -200,6 +214,16 @@ def run(args):
     validate_splits({'train':fit, 'val':validation})
     fit = subset(fit, args.train_limit, args.seed)
     validation = subset(validation, args.val_limit, args.seed)
+    if args.continue_checkpoint:
+        if args.initial_checkpoint or args.base_arm or len(args.arms) != 1 or args.arms[0] != CONTEXT_ARM:
+            raise ValueError('The convergence probe continues one packed_context arm from its last checkpoint')
+        prior = json.loads((args.continue_checkpoint.parent.parent/'provenance.json').read_text())
+        if (args.continue_checkpoint.name != 'last.pt' or prior['seed'] != args.seed
+                or prior['train_sha256'] != file_hash(args.train)
+                or prior['val_sha256'] != file_hash(args.val)
+                or prior['train_ids'] != [row['id'] for row in fit]
+                or prior['val_ids'] != [row['id'] for row in validation]):
+            raise ValueError('The convergence probe requires the same ordered splits and original last.pt')
     # Fail before creating a run directory if this runtime cannot acquire CUDA.
     torch.zeros(1, device='cuda:0')
     args.output.mkdir(parents=True, exist_ok=False)
@@ -213,19 +237,20 @@ def run(args):
         'torch':torch.__version__, 'gpu':torch.cuda.get_device_name(),
         'cublas_workspace_config':os.environ['CUBLAS_WORKSPACE_CONFIG'],
         'initial_checkpoint_sha256':file_hash(args.initial_checkpoint) if args.initial_checkpoint else None,
+        'continued_checkpoint_sha256':file_hash(args.continue_checkpoint) if args.continue_checkpoint else None,
         'base_arm':args.base_arm, 'arms':list(args.arms), 'train_size':256, 'batch':2, 'student_width':args.width,
     }
     (args.output/'provenance.json').write_text(json.dumps(provenance, indent=2))
     if args.historical_mamba:
         opt = args.mamba/'supplement_20261112/protocol/historical_checkpoints.json'
-        historical = json.loads(opt.read_text(encoding='utf-8'))['LSUI']
+        historical = json.loads(opt.read_text(encoding='utf-8'))[args.historical_training_dataset]
         weights = Path(historical['path'])
         if file_hash(weights) != historical['sha256']:
             raise ValueError('Historical MambaCue state has an unexpected hash')
         mamba = load_network('mambacue', args.mamba, args.width).cuda().eval()
         mamba.load_state_dict(torch.load(weights, map_location='cpu', weights_only=True))
         val_loader = DataLoader(PairedDataset(validation, resize=256), batch_size=1, num_workers=2)
-        record = {'mambacue_sha256':historical['sha256'],
+        record = {'mambacue_sha256':historical['sha256'], 'training_dataset':args.historical_training_dataset,
                   'val_ids':provenance['val_ids'], 'val':validate(mamba, val_loader, 'cuda:0')}
         (args.output/'historical_mambacue.json').write_text(json.dumps(record, indent=2))
         print(json.dumps(record['val']), flush=True)
@@ -255,6 +280,8 @@ if __name__ == '__main__':
     parser.add_argument('--arms', nargs='+', choices=(*PACKED_ARMS, 'mambacue'), default=MODELS)
     parser.add_argument('--width', type=int, default=24)
     parser.add_argument('--initial-checkpoint',type=Path)
+    parser.add_argument('--continue-checkpoint', type=Path, help='Continue packed_context from last.pt for extra epochs')
     parser.add_argument('--base-arm', choices=SCENE_ARMS)
     parser.add_argument('--historical-mamba', action='store_true')
+    parser.add_argument('--historical-training-dataset', choices=('LSUI', 'UIEB', 'UFO'), default='LSUI')
     run(parser.parse_args())

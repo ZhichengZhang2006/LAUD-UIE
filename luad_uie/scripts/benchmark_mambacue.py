@@ -1,4 +1,4 @@
-"""Collect per-image MambaCue reference measurements using the supplied LSUI weights."""
+"""Evaluate frozen LSUI models or UIEB models on their designated test tracks."""
 import hashlib
 import argparse
 import json
@@ -24,16 +24,21 @@ def load_rgb(path):
 
 
 @torch.inference_mode()
-def main(output, student_checkpoint=None):
+def main(output, student_checkpoint=None, uieb_audit=None):
     repo = Path('/home/user/MambaCue')
     os.chdir(repo)
     sys.path.insert(0, str(repo))
     from utils import metrics
     from utils.uranker.uranker_utils import build_model, get_option
     protocol = repo/'supplement_20261112/protocol'
+    training_dataset = 'UIEB' if uieb_audit else 'LSUI'
+    audit = json.loads(uieb_audit.read_text()) if uieb_audit else None
+    if audit and any(audit['source_manifests'][split] != digest(protocol/f'UIEB_{split}.json')
+                     for split in ('train', 'val', 'test')):
+        raise ValueError('The UIEB audit does not match the declared training/evaluation manifests')
     if student_checkpoint is None:
         from model import myModel
-        checkpoint = json.loads((protocol/'historical_checkpoints.json').read_text())['LSUI']
+        checkpoint = json.loads((protocol/'historical_checkpoints.json').read_text())[training_dataset]
         if digest(checkpoint['path']) != checkpoint['sha256']:
             raise ValueError('Baseline checkpoint SHA mismatch')
         model = myModel()
@@ -43,23 +48,35 @@ def main(output, student_checkpoint=None):
         from luad_uie.models.selective_student import build_student
         checkpoint = {'path': str(student_checkpoint), 'sha256': digest(student_checkpoint)}
         state = torch.load(student_checkpoint, map_location='cpu', weights_only=True)
+        if audit:
+            run = json.loads((student_checkpoint.parent.parent/'provenance.json').read_text())
+            if any(run[f'{split}_sha256'] != audit['csv_sha256'][split] for split in ('train', 'val')):
+                raise ValueError('UIEB testing requires a checkpoint from the audited UIEB training run')
         model = build_student(state['config']['student'])
         weights = state['student']
         model_name = 'LUAD-UIE'
     model.load_state_dict(weights, strict=True)
     model.cuda().eval()
-    manifest = json.loads((protocol/'LSUI_test.json').read_text())
-    images = {'LSUI': manifest}
-    for name in ('U45', 'CH60'):
-        paths = sorted((Path('/home/user/UnderWaterDataset')/name/'test').iterdir())
-        images[name] = [{'input': str(path), 'name': path.name} for path in paths
-                        if path.suffix.lower() in ('.jpg', '.png', '.bmp', '.jpeg')]
+    reference_manifest = protocol/f'{training_dataset}_test.json'
+    manifest = json.loads(reference_manifest.read_text())
+    images = {training_dataset: manifest}
+    if audit:
+        for name in ('U45', 'CH60'):
+            folder = Path('/home/user/UnderWaterDataset')/name/'test'
+            fingerprints = audit['no_reference_fingerprints'][name]
+            paths = sorted(path for path in folder.iterdir()
+                           if path.suffix.lower() in ('.jpg', '.png', '.bmp', '.jpeg'))
+            if {path.name for path in paths} != set(fingerprints):
+                raise ValueError(f'{name} membership changed after the UIEB audit')
+            images[name] = [{'input': str(path), 'name': path.name,
+                             'input_sha256': fingerprints[path.name][0]} for path in paths]
     output.mkdir(parents=True, exist_ok=False)
-    metadata = {'model':model_name, 'checkpoint':checkpoint, 'model_parameters':sum(p.numel() for p in model.parameters()),
+    metadata = {'model':model_name, 'checkpoint':checkpoint, 'training_dataset':training_dataset,
+                'uieb_audit_sha256':digest(uieb_audit) if uieb_audit else None, 'model_parameters':sum(p.numel() for p in model.parameters()),
                 'device':torch.cuda.get_device_name(), 'torch':str(torch.__version__),
                 'preprocessing':'PIL RGB bilinear 256x256 float32 /255',
                 'source_sha256':{f:digest(repo/f) for f in ('model.py','encoder.py','output_heads.py','prior.py','utils/metrics.py','utils/niqe_utils.py')},
-                'manifest_sha256':digest(protocol/'LSUI_test.json')}
+                'manifest_sha256':digest(reference_manifest)}
     (output/'provenance.json').write_text(json.dumps(metadata,indent=2))
     example = load_rgb(manifest[0]['input'])
     for _ in range(10):
@@ -80,18 +97,20 @@ def main(output, student_checkpoint=None):
             raise ValueError(dataset)
         folder = output/dataset
         folder.mkdir()
-        if dataset != 'LSUI' and ranker is None:
+        if 'target' not in rows[0] and ranker is None:
             options = get_option('utils/uranker/URanker.yaml')['model']
             options.update(cuda=False,resume_ckpt_path='utils/uranker/URanker_ckpt.pth')
             ranker = build_model(options).cpu().eval()
         scores = []
         with (folder/'metrics.jsonl').open('x') as stream:
             for i,row in enumerate(rows):
+                if digest(row['input']) != row['input_sha256']:
+                    raise ValueError('Input content changed: '+row['name'])
                 inp = load_rgb(row['input'])
                 pred = model(inp).clamp(0,1).permute(0,2,3,1).cpu().numpy()
                 result = {'UCIQE':float(metrics.getUCIQE(pred))}
                 if 'target' in row:
-                    if digest(row['target']) != row['target_sha256'] or digest(row['input']) != row['input_sha256']:
+                    if digest(row['target']) != row['target_sha256']:
                         raise ValueError('Dataset content changed: '+row['name'])
                     target = load_rgb(row['target']).permute(0,2,3,1).cpu().numpy()
                     result.update(SSIM=float(metrics.getSSIM(pred,target,1.)), PSNR=float(metrics.getPSNR(pred,target,1.)),
@@ -112,5 +131,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('output', type=Path)
     parser.add_argument('--student-checkpoint', type=Path)
+    parser.add_argument('--uieb-audit', type=Path)
     args = parser.parse_args()
-    main(args.output.resolve(), args.student_checkpoint.resolve() if args.student_checkpoint else None)
+    parser_audit = args.uieb_audit.resolve() if args.uieb_audit else None
+    main(args.output.resolve(), args.student_checkpoint.resolve() if args.student_checkpoint else None, parser_audit)

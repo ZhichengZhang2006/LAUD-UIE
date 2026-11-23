@@ -11,16 +11,21 @@ def read(path):
 
 def build_report(quality, downstream, timing):
     baseline, candidate = quality['checkpoint_sha256']
+    unpaired = quality.get('unpaired_checkpoint_sha256')
+    valid_uieb = quality.get('unpaired_training_dataset') == 'UIEB' and unpaired and len(unpaired) == 2
     report = {
         'checkpoint_sha256': {'mambacue': baseline, 'candidate': candidate},
         'quality': {'wins': quality['quality_wins'], 'endpoints': quality['quality_endpoints'],
-                    'pass': quality['meets_80_percent_quality']},
+                    'unpaired_training_dataset': quality.get('unpaired_training_dataset'),
+                    'pass': bool(valid_uieb and quality['meets_80_percent_quality'])},
         'boundary': {'pass': None},
         'detection': {'pass': None},
         'duo': {'pass': None},
         'sift': {'pass': None},
         'speed': {'pass': None},
     }
+    if valid_uieb:
+        report['unpaired_checkpoint_sha256'] = dict(zip(('mambacue', 'candidate'), unpaired))
     boundary = read(downstream / 'suim.json')
     if boundary:
         if (boundary['mambacue'], boundary['candidate']) != (baseline, candidate):
