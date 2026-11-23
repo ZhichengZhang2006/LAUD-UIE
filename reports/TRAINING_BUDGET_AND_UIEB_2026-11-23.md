@@ -21,3 +21,9 @@ CH60 与 U45 分别使用同一份 UIEB 训练得到的候选权重，MambaCue �
 UIEB 训练从随机初始化开始，采用宽度 40 零均值残差学生。训练 712 张、验证 88 张，另冻结 89 张配对测试图。经文件 SHA256 与原尺寸 RGB 像素指纹核验，公共测试图与当前 UIEB 训练、验证没有精确内容交集。200 轮、每轮 356 步，共 71,200 次计划更新。每轮按同一验证集的平均 PSNR 保存最佳权重。输入 RGB 整图 256×256、训练 batch 2、种子 42、AdamW 与余弦学习率沿用前一阶段。由于执行 UIEB MambaCue 复评，使用 school-gpu2 的 HVI 环境。实验目录为 `/home/user/luad_uie_prototype_20261031/stages/uieb_20261123`。
 
 用冻结的 LSUI 权重在 UIEB、UFO-120、EUVP-Scene 与 EUVP-Dark 上做跨数据评估，记录同一分辨率下的 SSIM、PSNR、LPIPS-VGG、ΔE00 与 UCIQE。候选、MambaCue 和原图共享每一对样本，剔除与候选训练和验证清单、历史 LSUI 官方清单精确重合的图像。历史 MambaCue 权重的原始训练清单未留存，因此所做的重叠审计以可查清单为范围。
+
+## LPIPS 的离线权重
+
+跨数据集评估的首次重试在下载 VGG-16 ImageNet-1K 权重时遇到服务器 TLS 证书验证失败。LPIPS 继续使用 VGG v0.1。使用本地已有的 torchvision VGG-16 权重 `vgg16-397923af.pth` 可复现原评估。两份本地文件的 SHA256 一致，与 torchvision 发布文件名中的校验前缀匹配。
+
+在评估环境中执行 `python -m luad_uie.scripts.stage_vgg_cache SOURCE_PTH TORCH_HOME_DIR`。该命令校验完整 SHA256，然后将文件写入 torchvision 预期的 `hub/checkpoints` 缓存位置。运行评估时将环境变量 `TORCH_HOME` 设为同一个根目录。项目只跟踪缓存准备代码和校验值。
