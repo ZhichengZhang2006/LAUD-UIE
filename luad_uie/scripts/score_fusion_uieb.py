@@ -80,6 +80,49 @@ def score(run, arm, audit_dir, workbook_reference, output):
                   rows=workbook_comparison(summaries, workbook),
                   interpretation='Numerical comparison to workbook entries; comparability requires matching test and metric protocols.')
     (output / 'workbook_comparison.json').write_text(json.dumps(report, indent=2, allow_nan=False))
+    score_ch60_sift(checkpoint, audit_dir, workbook, output)
+
+
+def score_ch60_sift(checkpoint, audit_dir, workbook, output):
+    """Match the CH60 input geometry, quantization and SIFT settings of Sheet6."""
+    import cv2
+    import numpy as np
+    import torch
+
+    from ..models.selective_student import build_student
+
+    images = json.loads((audit_dir / 'audit.json').read_text())['no_reference_fingerprints']['CH60']
+    if len(images) != 60:
+        raise ValueError('Expected the frozen 60-image CH60 inventory')
+    state = torch.load(checkpoint, weights_only=True, map_location='cpu')
+    model = build_student(state['config']['student'])
+    model.load_state_dict(state['student'])
+    model.cuda().eval()
+    results = []
+    folder = Path('/home/user/UnderWaterDataset/CH60/test')
+    detector = cv2.SIFT_create()
+    with torch.inference_mode():
+        for name, fingerprints in sorted(images.items()):
+            path = folder / name
+            if file_hash(path) != fingerprints[0]:
+                raise ValueError(f'CH60 input changed: {name}')
+            image = cv2.imread(str(path))
+            image = cv2.resize(image, (256, 256), interpolation=cv2.INTER_AREA)
+            rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            x = torch.from_numpy(rgb).permute(2, 0, 1)[None].cuda().float() / 255
+            prediction = model(x)[0].permute(1, 2, 0).cpu().numpy()
+            enhanced = np.rint(np.clip(prediction, 0, 1) * 255).astype(np.uint8)
+            gray = cv2.cvtColor(enhanced, cv2.COLOR_RGB2GRAY)
+            points, _ = detector.detectAndCompute(gray, None)
+            results.append(dict(id=name, keypoints=len(points)))
+    reference, = (row for row in workbook['measurements'] if row['sheet'] == 'Sheet6' and row['cell'] == 'B11')
+    score = sum(row['keypoints'] for row in results) / len(results)
+    summary = dict(dataset='CH60', images=len(results), checkpoint_sha256=file_hash(checkpoint),
+                   opencv=cv2.__version__, candidate_training_dataset='UIEB',
+                   workbook_training_dataset='LSUI', workbook_cell='Sheet6!B11',
+                   workbook_sha256=workbook['sha256'], workbook_keypoints=reference['value'],
+                   candidate_keypoints=score, per_image=results)
+    (output / 'ch60_sift.json').write_text(json.dumps(summary, indent=2, allow_nan=False))
 
 
 if __name__ == '__main__':
