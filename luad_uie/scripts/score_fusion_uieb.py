@@ -76,6 +76,7 @@ def score(run, arm, audit_dir, workbook_reference, output):
                  for name in ('UIEB', 'CH60', 'U45')}
     summaries['UIEB']['LPIPS'] = json.loads((output / 'UIEB/lpips.json').read_text())['LPIPS']
     report = dict(checkpoint_sha256=file_hash(checkpoint), arm=arm, epoch=epoch,
+                  training_dataset='UIEB', evaluation_size=256,
                   workbook_sha256=workbook['sha256'], image_counts={k:v['count'] for k,v in summaries.items()},
                   rows=workbook_comparison(summaries, workbook),
                   interpretation='Numerical comparison to workbook entries; comparability requires matching test and metric protocols.')
