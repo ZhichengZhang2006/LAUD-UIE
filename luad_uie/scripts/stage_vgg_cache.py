@@ -27,17 +27,18 @@ def stage(source, torch_home):
 
     target.parent.mkdir(parents=True, exist_ok=True)
     # Publish the cache file only after verifying the exact bytes PyTorch will read.
-    with tempfile.NamedTemporaryFile(dir=target.parent, prefix='vgg16-', suffix='.part', delete=False) as stream:
-        temporary = Path(stream.name)
-        try:
-            with source.open('rb') as weights:
+    temporary = None
+    try:
+        with source.open('rb') as weights:
+            with tempfile.NamedTemporaryFile(dir=target.parent, prefix='vgg16-', suffix='.part',
+                                             delete=False) as stream:
+                temporary = Path(stream.name)
                 shutil.copyfileobj(weights, stream, length=8 * 1024 * 1024)
-            stream.close()
-            validate(temporary)
-            os.replace(temporary, target)
-        finally:
-            if temporary.exists():
-                temporary.unlink()
+        validate(temporary)
+        os.replace(temporary, target)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return target
 
 
