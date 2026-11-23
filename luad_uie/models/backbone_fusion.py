@@ -33,3 +33,13 @@ class BackboneFusion(nn.Module):
 
     def forward(self, image):
         return self.head(image, self.backbone(image))
+
+    def set_inference_scan_batch(self, size):
+        """Batch independent scans only during inference; weights are shared."""
+        from .mambacue_backbone.encoder import FourDirectionMamba
+
+        if size not in (1, 2, 4):
+            raise ValueError('Scan batch must be 1, 2 or 4')
+        for layer in self.backbone.modules():
+            if isinstance(layer, FourDirectionMamba):
+                layer.inference_scan_batch = size

@@ -30,6 +30,8 @@ def measure(model, image):
     for _ in range(10):
         model(image)
     torch.cuda.synchronize()
+    resident = torch.cuda.memory_allocated()
+    torch.cuda.reset_peak_memory_stats()
     samples = []
     for _ in range(30):
         torch.cuda.synchronize()
@@ -40,10 +42,11 @@ def measure(model, image):
     return dict(parameters=sum(p.numel() for p in model.parameters()),
                 thop_parameters=int(counted_parameters), thop_raw_operations=int(operations),
                 thop_version=getattr(thop, '__version__', None), median_ms=statistics.median(samples),
-                mean_ms=statistics.mean(samples), samples_ms=samples)
+                mean_ms=statistics.mean(samples), samples_ms=samples,
+                peak_forward_extra_bytes=torch.cuda.max_memory_allocated() - resident)
 
 
-def run(run_dir, arm, audit_dir, workbook_file, output):
+def run(run_dir, arm, audit_dir, workbook_file, output, scan_batch):
     from ..models.selective_student import build_student
 
     if output.exists():
@@ -61,12 +64,18 @@ def run(run_dir, arm, audit_dir, workbook_file, output):
                     generator=torch.Generator(device=device).manual_seed(42))
     workbook = json.loads(workbook_file.read_text(encoding='utf-8'))
     values = {r['cell']: r['value'] for r in workbook['measurements'] if r['sheet'] == 'Sheet4'}
+    if scan_batch != 1:
+        with torch.inference_mode():
+            reference = model(x)
+            model.set_inference_scan_batch(scan_batch)
+            torch.testing.assert_close(model(x), reference, atol=2e-5, rtol=1e-5)
     before = gpu_state()
     result = measure(model, x)
     after = gpu_state()
     report = dict(training_dataset='UIEB', checkpoint_sha256=file_hash(path), epoch=selected_epoch,
                   device=torch.cuda.get_device_name(device), torch_version=str(torch.__version__),
                   input_shape=list(x.shape), precision='FP32', tf32=False, warmup=10, repetitions=30,
+                  inference_scan_batch=scan_batch,
                   timing_scope='Synchronized forward wall time, excluding image I/O and pre/post-processing',
                   gpu_state_before=before, gpu_state_after=after, candidate=result,
                   workbook_sha256=workbook['sha256'],
@@ -82,4 +91,5 @@ if __name__ == '__main__':
     parser.add_argument('arm')
     for field in ('audit_dir', 'workbook_file', 'output'):
         parser.add_argument(field, type=Path)
+    parser.add_argument('--scan-batch', type=int, choices=(1, 2, 4), default=1)
     run(**vars(parser.parse_args()))

@@ -17,6 +17,7 @@ class FourDirectionMamba(nn.Module):
         if scan_mode not in ("row", "four"):
             raise ValueError("scan_mode must be 'row' or 'four'")
         self.scan_mode = scan_mode
+        self.inference_scan_batch = 1
         self.mamba = Mamba(d_model=dim, d_state=d_state, d_conv=d_conv, expand=expand)
         self.proj = nn.Conv2d(dim, dim, 1)
 
@@ -32,7 +33,26 @@ class FourDirectionMamba(nn.Module):
         grid = sequence.transpose(1, 2).reshape(batch, channels, height, width)
         return grid.transpose(2, 3).contiguous() if column else grid.contiguous()
 
+    def _batched_scans(self, x):
+        batch, channels, height, width = x.shape
+        row = x.flatten(2).transpose(1, 2).contiguous()
+        col = x.transpose(2, 3).flatten(2).transpose(1, 2).contiguous()
+        inputs = (row, row.flip(1), col, col.flip(1))
+        size = self.inference_scan_batch
+        outputs = []
+        for start in range(0, 4, size):
+            outputs.extend(self.mamba(torch.cat(inputs[start:start + size], dim=0)).split(batch, dim=0))
+        forward_row, backward_row, forward_col, backward_col = outputs
+        fused_row = forward_row + backward_row.flip(1)
+        fused = fused_row.transpose(1, 2).reshape(batch, channels, height, width)
+        forward = forward_col.transpose(1, 2).reshape(batch, channels, width, height)
+        backward = backward_col.flip(1).transpose(1, 2).reshape(batch, channels, width, height)
+        return ((fused + forward.transpose(2, 3) + backward.transpose(2, 3)) * 0.25).contiguous()
+
     def forward(self, x):
+        if (self.scan_mode == "four" and self.inference_scan_batch > 1
+                and not self.training and not torch.is_grad_enabled()):
+            return self.proj(self._batched_scans(x))
         fused = self._scan(x)
         if self.scan_mode == "four":
             # Sequential calls avoid stacking four full-resolution inputs.
