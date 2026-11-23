@@ -42,14 +42,18 @@ def strategy_weights(experiment, x, utility=None, controller=None, view=None):
 
 
 @torch.no_grad()
-def validate(student, loader, device):
+def validate(student, loader, device, extra_metrics=None):
     student.eval()
     sums = {'psnr': 0., 'ssim': 0., 'mse': 0.}
     count = 0
     for batch in loader:
         x, target = batch['input'].to(device), batch['target'].to(device)
-        for key, values in metrics(student(x), target).items():
-            sums[key] += values.sum().item()
+        prediction = student(x)
+        batch_metrics = metrics(prediction, target)
+        if extra_metrics is not None:
+            batch_metrics.update(extra_metrics(prediction, target))
+        for key, values in batch_metrics.items():
+            sums[key] = sums.get(key, 0.) + values.sum().item()
         count += x.shape[0]
     return {key: value/count for key, value in sums.items()}
 

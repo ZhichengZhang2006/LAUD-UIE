@@ -24,7 +24,8 @@ MODELS = ('packed_rgb', 'packed_bands', 'mambacue')
 EXPOSURE_ARM = 'packed_exposure'
 CONTEXT_ARM = 'packed_context'
 PHASE_ARMS = ('packed_phase_pair', 'packed_phase_consistency')
-PACKED_ARMS = ('packed_rgb', 'packed_bands', EXPOSURE_ARM, CONTEXT_ARM, *PHASE_ARMS)
+SCENE_ARMS = ('scene_unconstrained', 'scene_centered', 'scene_supervised')
+PACKED_ARMS = ('packed_rgb', 'packed_bands', EXPOSURE_ARM, CONTEXT_ARM, *PHASE_ARMS, *SCENE_ARMS)
 
 
 def loss_by_band(prediction, reference):
@@ -46,6 +47,24 @@ def loss_by_exposure(prediction, reference):
     return .25 * image_bias.abs().mean() + .25 * lighting.abs().mean()
 
 
+def scene_supervision(features, image, reference):
+    target_delta = reference - image
+    target_offset = target_delta.mean(dim=(-2, -1), keepdim=True)
+    offset_error = F.l1_loss(features['scene_offset'], target_offset)
+    spatial_error = F.l1_loss(features['spatial_delta'], target_delta - target_offset)
+    return .25 * (offset_error + spatial_error)
+
+
+def scene_metrics(prediction, reference):
+    error = prediction - reference
+    offset = error.mean(dim=(-2, -1), keepdim=True)
+    return {
+        'scene_mse': offset.square().mean(dim=(1, 2, 3)),
+        'spatial_mse': (error - offset).square().mean(dim=(1, 2, 3)),
+        'saturated_fraction': ((prediction == 0) | (prediction == 1)).float().mean(dim=(1, 2, 3)),
+    }
+
+
 def subset(rows, limit, seed):
     order = sorted(rows, key=lambda row: hashlib.sha256(f"{seed}:{row['id']}".encode()).digest())
     return order[:limit] if limit else order
@@ -54,8 +73,11 @@ def subset(rows, limit, seed):
 def student_config(arm, width):
     if arm == 'mambacue':
         return {'architecture':'mambacue', 'width':32}
-    return {'architecture':'packed', 'width':width, 'phase_residual':True,
-            'global_context':arm == CONTEXT_ARM}
+    config = {'architecture':'packed', 'width':width, 'phase_residual':True,
+              'global_context':arm == CONTEXT_ARM or arm in SCENE_ARMS}
+    if arm in SCENE_ARMS:
+        config['scene_residual'] = 'unconstrained' if arm == SCENE_ARMS[0] else 'centered'
+    return config
 
 
 def load_network(arm, mamba_root, width):
@@ -102,8 +124,12 @@ def train(arm, fit, validation, output, args):
         for pair in train_loader:
             x, target = (pair[field].to(device, non_blocking=True) for field in ('input', 'target'))
             optimizer.zero_grad(set_to_none=True)
-            prediction = network(x)
-            loss = reconstruction(prediction, target)
+            if arm == 'scene_supervised':
+                prediction, features = network(x, return_features=True)
+                loss = reconstruction(prediction, target) + scene_supervision(features, x, target)
+            else:
+                prediction = network(x)
+                loss = reconstruction(prediction, target)
             if arm in PHASE_ARMS:
                 dx, dy = ((1, 0), (0, 1), (1, 1))[step % 3]
                 moved = network(shift(x, dx, dy))
@@ -123,7 +149,8 @@ def train(arm, fit, validation, output, args):
             step += 1
             if step % 50 == 0:
                 print(json.dumps({'arm':arm, 'step':step, 'epoch':epoch+1}), flush=True)
-        val = validate(network, val_loader, device)
+        # Measure rendered outputs so any loss of orthogonality from clamping is visible.
+        val = validate(network, val_loader, device, scene_metrics if arm in SCENE_ARMS else None)
         report = {'arm':arm, 'epoch':epoch+1, 'steps':step, 'val':val,
                   'training_loss':running_loss/len(train_loader),
                   'seconds':time.monotonic()-started, 'peak_allocated':torch.cuda.max_memory_allocated(device)}
@@ -156,7 +183,9 @@ def run(args):
     provenance = {
         'train_sha256':file_hash(args.train), 'val_sha256':file_hash(args.val),
         'train_ids':[row['id'] for row in fit], 'val_ids':[row['id'] for row in validation],
-        'mamba_source':{name:file_hash(args.mamba/name) for name in ('model.py','encoder.py','prior.py','output_heads.py')},
+        'mamba_source': ({name: file_hash(args.mamba/name)
+                          for name in ('model.py', 'encoder.py', 'prior.py', 'output_heads.py')}
+                         if args.historical_mamba or 'mambacue' in args.arms else None),
         'epochs':args.epochs, 'seed':args.seed,
         'torch':torch.__version__, 'gpu':torch.cuda.get_device_name(),
         'cublas_workspace_config':os.environ['CUBLAS_WORKSPACE_CONFIG'],

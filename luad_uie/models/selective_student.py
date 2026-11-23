@@ -51,5 +51,6 @@ def build_student(config):
         return SelectiveStudent(config['width'], gated=config.get('gated', True))
     if name == 'packed':
         return PackedStudent(config['width'], phase_residual=config.get('phase_residual', True),
-                             global_context=config.get('global_context', False))
+                             global_context=config.get('global_context', False),
+                             scene_residual=config.get('scene_residual'))
     raise ValueError(f'Unknown student architecture: {name}')
