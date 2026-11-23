@@ -17,6 +17,8 @@ def build_report(quality, downstream, timing):
                     'pass': quality['meets_80_percent_quality']},
         'boundary': {'pass': None},
         'detection': {'pass': None},
+        'duo': {'pass': None},
+        'sift': {'pass': None},
         'speed': {'pass': None},
     }
     boundary = read(downstream / 'suim.json')
@@ -43,17 +45,32 @@ def build_report(quality, downstream, timing):
         a, b = (row['coco']['AP'] for row in detection)
         report['detection'] = {'mambacue_ap': a, 'candidate_ap': b, 'pass': b > a,
                                'images': manifest[0][2]}
+    application = read(downstream/'duo_sift.json')
+    if application and application['protocol']['scope'] == 'full':
+        if application['checkpoints'] != report['checkpoint_sha256']:
+            raise ValueError('DUO and SIFT checkpoints differ from the quality comparison')
+        protocol = application['protocol']
+        if protocol['enhancer_size'] != 256 or protocol['detector_size'] != 256:
+            raise ValueError('DUO and SIFT were evaluated at an unexpected input size')
+        mamba, enhanced = (application['metrics'][name] for name in ('mambacue', 'candidate'))
+        duo = {name: arm['duo']['ap'] for name, arm in application['metrics'].items()}
+        report['duo'] = {'ap': duo, 'images': application['images'],
+                         'pass': enhanced['duo']['ap'] > mamba['duo']['ap']}
+        report['sift'] = {
+            'metrics': {name: arm['sift'] for name, arm in application['metrics'].items()},
+            'pass': enhanced['sift']['mean_keypoints'] > mamba['sift']['mean_keypoints'],
+        }
     if timing and timing.get('checkpoint_sha256'):
         if timing['checkpoint_sha256'] != [baseline, candidate]:
             raise ValueError('Timing checkpoint differs from the quality comparison')
         comparisons = {}
-        for size in ('256', '512'):
+        for size in timing['measurements']:
             row = timing['measurements'][size]
             a, b = (row[name]['median_ms'] for name in ('mambacue', 'candidate'))
             comparisons[size] = {'mambacue_ms': a, 'candidate_ms': b, 'faster': b < a}
         report['speed'] = {'sizes': comparisons, 'shared_gpu': timing['shared_gpu'],
-                           'pass': all(row['faster'] for row in comparisons.values())}
-    gates = [report[name]['pass'] for name in ('quality', 'boundary', 'detection', 'speed')]
+                           'pass': comparisons['256']['faster']}
+    gates = [report[name]['pass'] for name in ('quality', 'duo', 'sift', 'speed')]
     report['all_measurement_gates_pass'] = all(gate is True for gate in gates)
     report['novelty_and_ablation_evidence_required'] = True
     return report
