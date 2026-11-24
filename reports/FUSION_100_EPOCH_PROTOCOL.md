@@ -15,3 +15,9 @@ school-gpu2 在 `/home/user/luad_fusion_1_0/formal100` 依次执行七个 LSUI �
 在 school-gpu2 并行运行 `formal100/full_lsui_free`。自由残差组从相同 UIEB 主干权重和零输出头开始，使用完整的 2,711 张去重 LSUI 训练图、相同的 128 张验证图、同一种子和 100 轮优化计划。每轮样本量从 512 增至 2,711，总更新从 51,200 增至 271,100。这项对照衡量相同轮数下扩大数据规模的综合影响，数据覆盖与更新次数同时变化。
 
 两项训练全部完成后使用 `python -m luad_uie.scripts.summarize_fusion_100 formal100 full_data_summary.json --include-full-data`。汇总会核对两个实验的验证样本、顺序和清单指纹，以及 512 张训练图是否为完整训练序列的固定子集。正式评分和 DUO 导出入口均接受 `full_lsui_free/free`。
+
+### 节点中断后的恢复
+
+确认原训练进程已经终止后，可用同一条训练命令追加 `--resume`。程序核对原清单、数据顺序、初始化权重、GPU 类型和训练参数，并从最后一个已落盘的 epoch 恢复模型、优化器和学习率调度器。已完成的组跳过。若最后一条日志先于其检查点写入，恢复时将该条移入 `discarded_epoch.jsonl`。显存不足的中止标记会阻止续跑。
+
+旧检查点可重放数据加载器的采样随机序列，恢复事件记录在 `resume.jsonl`。旧检查点缺少完整全局随机状态，因此旧运行的继续训练不能视作逐比特复现。新检查点记录训练加载器和 PyTorch CPU、CUDA 随机状态。
