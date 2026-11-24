@@ -36,18 +36,26 @@ class FourDirectionMamba(nn.Module):
     def _batched_scans(self, x):
         batch, channels, height, width = x.shape
         row = x.flatten(2).transpose(1, 2).contiguous()
+        if self.inference_scan_batch == 2:
+            row_sum = self._scan_pair(row).transpose(1, 2).reshape(batch, channels, height, width)
+            del row
+            col = x.transpose(2, 3).flatten(2).transpose(1, 2).contiguous()
+            col_sum = self._scan_pair(col).transpose(1, 2).reshape(batch, channels, width, height)
+            return ((row_sum + col_sum.transpose(2, 3)) * .25).contiguous()
+
         col = x.transpose(2, 3).flatten(2).transpose(1, 2).contiguous()
         inputs = (row, row.flip(1), col, col.flip(1))
-        size = self.inference_scan_batch
-        outputs = []
-        for start in range(0, 4, size):
-            outputs.extend(self.mamba(torch.cat(inputs[start:start + size], dim=0)).split(batch, dim=0))
-        forward_row, backward_row, forward_col, backward_col = outputs
+        forward_row, backward_row, forward_col, backward_col = self.mamba(
+            torch.cat(inputs, dim=0)).split(batch, dim=0)
         fused_row = forward_row + backward_row.flip(1)
         fused = fused_row.transpose(1, 2).reshape(batch, channels, height, width)
         forward = forward_col.transpose(1, 2).reshape(batch, channels, width, height)
         backward = backward_col.flip(1).transpose(1, 2).reshape(batch, channels, width, height)
         return ((fused + forward.transpose(2, 3) + backward.transpose(2, 3)) * 0.25).contiguous()
+
+    def _scan_pair(self, sequence):
+        forward, backward = self.mamba(torch.cat((sequence, sequence.flip(1)), dim=0)).chunk(2, dim=0)
+        return forward + backward.flip(1)
 
     def forward(self, x):
         if (self.scan_mode == "four" and self.inference_scan_batch > 1
