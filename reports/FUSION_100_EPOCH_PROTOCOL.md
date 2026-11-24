@@ -32,4 +32,6 @@ school-gpu2 在 `/home/user/luad_fusion_1_0/formal100` 依次执行七个 LSUI �
 
 执行命令为 `python -m luad_uie.scripts.compare_fusion_validation formal100 validation_contrasts.json`。
 
+自由残差与中心化两组均完成全部 100 轮后，可用 `--centered-only` 独立完成这项预先规定的消融。该入口复核训练和验证清单指纹及顺序，并要求两组各有 100 条连续日志和一致的末轮及最佳检查点。服务器在队列进入顺序监督组后自动执行这项对照。七组的整体比较仍按完整队列生成。
+
 结构对照可追加 `--with-sift`，加入逐图关键点数与两种固定旋转缩放下的一对一匹配数。沿用 ± 方向的固定变换（5°、0.95 倍与 −10°、1.05 倍）、8 像素边界与 3 像素匹配半径。每次变换也记录有效匹配分母，便于检查候选是否只增加了重复或不稳定的检测。使用 `--gradient-control ../gradient_control_stage/control` 可将跑满 100 轮的梯度对照一起分析。这里使用 LSUI 开发数据，不参与 DUO 或 CH60 正式验收统计。

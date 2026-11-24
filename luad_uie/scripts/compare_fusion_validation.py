@@ -13,6 +13,8 @@ from ..losses.ordinal_structure import structure_metrics
 from ..models.selective_student import build_student
 from ..runtime import file_hash, seed_all
 from .summarize_fusion_100 import checked_checkpoints, collect
+from .train_backbone_fusion import ARMS, BACKBONE_SHA256
+from .train_matched_quality import subset
 
 
 CONTRASTS = (
@@ -106,9 +108,31 @@ def verify_gradient_control(directory, standard):
     return checked_checkpoints(directory / 'gradient')
 
 
-def run(root, output, gradient_control=None, with_sift=False):
-    verified = collect(root)
+def run(root, output, gradient_control=None, with_sift=False, centered_only=False):
+    if output.exists():
+        raise FileExistsError(output)
     protocol = json.loads((root / 'standard/protocol.json').read_text())
+    if centered_only:
+        args = protocol['parameters']
+        expected = dict(epochs=100, batch=1, seed=42, train_limit=512, val_limit=128,
+                        head_fit_images=0, arms=list(ARMS), smoke_test=False)
+        if (any(args.get(k) != v for k, v in expected.items()) or protocol['head_fit_ids']
+                or protocol['weights_sha256'] != BACKBONE_SHA256):
+            raise ValueError('The centered comparison requires the frozen standard protocol')
+        for split, limit in [('train', 512), ('val', 128)]:
+            split_path = Path(args[split])
+            ordered = subset(read_manifest(split_path), limit, 42)
+            if (file_hash(split_path) != protocol[f'{split}_sha256']
+                    or len(ordered) != limit
+                    or [row['id'] for row in ordered] != protocol[f'{split}_ids']):
+                raise ValueError(f'The original {split} manifest or sample order changed')
+        arms = {f'standard/{arm}':checked_checkpoints(root / 'standard' / arm)
+                for arm in ('free', 'centered')}
+        verified = dict(arms=arms, val_manifest_sha256=protocol['val_sha256'])
+        specifications = CONTRASTS[:1]
+    else:
+        verified = collect(root)
+        specifications = CONTRASTS
     manifest = Path(protocol['parameters']['val'])
     if file_hash(manifest) != verified['val_manifest_sha256']:
         raise ValueError('The original validation manifest changed')
@@ -117,7 +141,6 @@ def run(root, output, gradient_control=None, with_sift=False):
     dataset = PairedDataset([lookup[i] for i in ids], resize=256)
     seed_all(42)
     selected = {arm:(root / arm / 'last.pt', evidence['last']) for arm, evidence in verified['arms'].items()}
-    specifications = CONTRASTS
     if gradient_control is not None:
         control = verify_gradient_control(gradient_control, protocol)
         selected['control/gradient'] = gradient_control / 'gradient/last.pt', control['last']
@@ -137,10 +160,12 @@ def run(root, output, gradient_control=None, with_sift=False):
                                      [row[metric] for row in measurements[baseline]], indices, metric)
             for metric in METRICS + (SIFT_METRICS if with_sift else ())})
     kd_weights = {}
-    for arm in ('fixed', 'utility'):
-        history = (root / 'standard' / arm / 'epochs.jsonl').read_text().splitlines()
-        kd_weights[arm] = [json.loads(line)['kd_weights'] for line in history]
-    report = dict(dataset='LSUI validation', checkpoint_epoch=100, seed=42, bootstrap_draws=5000,
+    if not centered_only:
+        for arm in ('fixed', 'utility'):
+            history = (root / 'standard' / arm / 'epochs.jsonl').read_text().splitlines()
+            kd_weights[arm] = [json.loads(line)['kd_weights'] for line in history]
+    scope = 'centered_vs_free' if centered_only else 'full_ablation'
+    report = dict(dataset='LSUI validation', scope=scope, checkpoint_epoch=100, seed=42, bootstrap_draws=5000,
                   val_manifest_sha256=verified['val_manifest_sha256'],
                   checkpoints={key:value[1]['sha256'] for key, value in selected.items()},
                   contrasts=contrasts, per_image=measurements, training_kd_weights_by_epoch=kd_weights)
@@ -158,7 +183,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('root', type=Path)
     parser.add_argument('output', type=Path)
-    parser.add_argument('--gradient-control', type=Path)
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument('--gradient-control', type=Path)
+    scope.add_argument('--centered-only', action='store_true')
     parser.add_argument('--with-sift', action='store_true')
     args = parser.parse_args()
-    run(args.root.resolve(), args.output.resolve(), args.gradient_control, args.with_sift)
+    run(args.root.resolve(), args.output.resolve(), args.gradient_control, args.with_sift, args.centered_only)
