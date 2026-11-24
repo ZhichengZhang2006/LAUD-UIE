@@ -1,4 +1,5 @@
 """RGB enhancement from the supplied four-stage MambaCue feature backbone."""
+import torch
 from torch import nn
 
 
@@ -33,6 +34,12 @@ class BackboneFusion(nn.Module):
 
     def forward(self, image):
         return self.head(image, self.backbone(image))
+
+    def forward_bf16_backbone(self, image):
+        """Run the feature backbone in autocast and reconstruct RGB in FP32."""
+        with torch.autocast('cuda', dtype=torch.bfloat16):
+            features = self.backbone(image)
+        return self.head(image.float(), features.float())
 
     def set_inference_scan_batch(self, size):
         """Batch independent scans only during inference; weights are shared."""

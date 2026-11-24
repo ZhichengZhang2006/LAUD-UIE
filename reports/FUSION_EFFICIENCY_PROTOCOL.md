@@ -65,3 +65,10 @@ UIEB 候选须通过完整训练预算及数据审计，之后由 `python -m lua
 仅主干 BF16 的运行时间较 FP32 低 18.9%，额外峰值显存低 42.9%。FP32 输出头只小幅减轻最差样本的 PSNR 下降。混合精度是可选部署配置，正式质量与工作簿效率比较采用 FP32。见 [逐图结果与原始计时](fusion_precision_epoch100.json)。
 
 复现命令为 `python -m luad_uie.scripts.benchmark_fusion_precision FORMAL100_ROOT OUTPUT_JSON`。
+
+在支持 BF16 的 CUDA 设备上，可用候选模型的常规推理入口导出图像。输出的 `metrics.json` 记录权重指纹、精度和扫描合批配置。第 100 轮权重已在 school-gpu2 上用该入口完成两张 256×256 PNG 的导出检查。
+
+```sh
+python -m luad_uie.scripts.evaluate --checkpoint CHECKPOINT --manifest INPUT_CSV \
+    --output OUTPUT --inference-only --save-images --precision bf16-backbone --scan-batch 2
+```

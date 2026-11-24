@@ -10,6 +10,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from ..models import Student
+from ..models.backbone_fusion import BackboneFusion
 from ..datasets import read_manifest, PairedDataset
 from ..losses import metrics
 from ..runtime import file_hash
@@ -35,7 +36,8 @@ def validate_baseline(base, config, manifest_hash):
 
 
 @torch.no_grad()
-def evaluate(checkpoint, manifest, output, device='cuda', baseline=None, save_images=False, inference_only=False):
+def evaluate(checkpoint, manifest, output, device='cuda', baseline=None, save_images=False,
+             inference_only=False, precision='fp32', scan_batch=1):
     state = torch.load(checkpoint, map_location='cpu', weights_only=True)
     config = state['config']
     manifest_hash = file_hash(manifest)
@@ -44,6 +46,19 @@ def evaluate(checkpoint, manifest, output, device='cuda', baseline=None, save_im
         validate_baseline(base, config, manifest_hash)
     student = build_student(config['student']).to(device).eval()
     student.load_state_dict(state['student'])
+    if precision not in ('fp32', 'bf16-backbone') or scan_batch not in (1, 2, 4):
+        raise ValueError('Unsupported precision or scan batch')
+    if precision != 'fp32' or scan_batch != 1:
+        if not isinstance(student, BackboneFusion) or torch.device(device).type != 'cuda':
+            raise ValueError('Optional inference modes require a fusion checkpoint on CUDA')
+        student.set_inference_scan_batch(scan_batch)
+    if precision == 'bf16-backbone':
+        with torch.cuda.device(device):
+            if not torch.cuda.is_bf16_supported():
+                raise ValueError('BF16 inference requires a supported CUDA device')
+        forward = student.forward_bf16_backbone
+    else:
+        forward = student
     records = read_manifest(manifest, require_target=False)
     if inference_only:
         records = [{**r, 'target': None} for r in records]
@@ -54,13 +69,13 @@ def evaluate(checkpoint, manifest, output, device='cuda', baseline=None, save_im
         x = batch['input'].to(device)
         # Warm up per shape; timing excludes IO, transfer and metrics, batch=1.
         for _ in range(3):
-            student(x)
+            forward(x)
         if x.is_cuda:
-            torch.cuda.synchronize()
+            torch.cuda.synchronize(x.device)
         started = time.perf_counter()
-        prediction = student(x)
+        prediction = forward(x)
         if x.is_cuda:
-            torch.cuda.synchronize()
+            torch.cuda.synchronize(x.device)
         row = {'id': batch['id'][0], 'latency_ms': (time.perf_counter()-started)*1000,
                'height': x.shape[-2], 'width': x.shape[-1]}
         if 'target' in batch:
@@ -71,7 +86,8 @@ def evaluate(checkpoint, manifest, output, device='cuda', baseline=None, save_im
         rows.append(row)
     summary = {key: float(np.mean([r[key] for r in rows if key in r])) for key in ('psnr', 'ssim', 'mse', 'latency_ms') if any(key in r for r in rows)}
     summary.update({'images': len(rows), 'teacher_mode_during_training': state['config']['teacher']['mode'],
-                    'manifest_sha256': file_hash(manifest), 'student_only': True})
+                    'manifest_sha256': manifest_hash, 'student_only': True,
+                    'precision': precision, 'scan_batch': scan_batch})
     if base is not None:
         by_id = {r['id']: r for r in base['per_image']}
         if set(by_id) != {r['id'] for r in rows} or any('psnr' not in r or 'psnr' not in by_id[r['id']] for r in rows):
@@ -79,9 +95,11 @@ def evaluate(checkpoint, manifest, output, device='cuda', baseline=None, save_im
         for row in rows:
             row['delta_psnr_vs_E0'] = row['psnr']-by_id[row['id']]['psnr']
         summary['degraded_fraction_vs_E0'] = sum(r['delta_psnr_vs_E0'] < 0 for r in rows)/len(rows)
+    data = {key: (None if inference_only and not Path(path).is_file() else file_hash(path))
+            for key, path in config.get('data', {}).items() if path}
     result = {'experiment': config['experiment'], 'summary': summary, 'per_image': rows,
               'training_config': config, 'checkpoint_sha256': file_hash(checkpoint),
-              'training_manifest_sha256': {k: file_hash(v) for k, v in config.get('data', {}).items() if v}}
+              'training_manifest_sha256': data}
     (out/'metrics.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
     print(json.dumps(summary), flush=True)
     return result
@@ -96,6 +114,8 @@ def main():
     p.add_argument('--baseline', help='E0 metrics.json')
     p.add_argument('--save-images', action='store_true')
     p.add_argument('--inference-only', action='store_true', help='Do not load GT pixels or compute GT metrics')
+    p.add_argument('--precision', choices=('fp32', 'bf16-backbone'), default='fp32')
+    p.add_argument('--scan-batch', type=int, choices=(1, 2, 4), default=1)
     args = p.parse_args()
     evaluate(**vars(args))
 

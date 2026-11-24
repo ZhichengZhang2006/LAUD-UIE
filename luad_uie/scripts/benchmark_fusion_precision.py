@@ -43,12 +43,7 @@ def benchmark(root, output):
         with torch.autocast('cuda', dtype=torch.bfloat16):
             return model(x)
 
-    def mixed_backbone(x):
-        with torch.autocast('cuda', dtype=torch.bfloat16):
-            features = model.backbone(x)
-        return model.head(x, features.float())
-
-    modes = {'fp32':model, 'bf16':mixed, 'bf16_backbone':mixed_backbone}
+    modes = {'fp32':model, 'bf16':mixed, 'bf16_backbone':model.forward_bf16_backbone}
     gpu_before = gpu_state()
     per_image = []
     for batch in DataLoader(dataset, batch_size=1, num_workers=2):
