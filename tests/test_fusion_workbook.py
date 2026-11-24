@@ -1,7 +1,11 @@
 import json
 from pathlib import Path
 
-from luad_uie.scripts.score_fusion_uieb import workbook_comparison
+import pytest
+import torch
+
+from luad_uie.runtime import file_hash
+from luad_uie.scripts.score_fusion_uieb import verify_checkpoint, workbook_comparison
 
 
 def test_workbook_cells_metric_directions_and_missing_references():
@@ -20,3 +24,40 @@ def test_workbook_cells_metric_directions_and_missing_references():
     assert by_key['CH60', 'NIQE']['numerical_win'] is True
     for metric in ('E00', 'LPIPS'):
         assert by_key['UIEB', metric]['numerical_win'] is None
+
+
+def test_uieb_eval_requires_the_best_and_final_checkpoints(tmp_path):
+    run, audit, arm = tmp_path/'run', tmp_path/'audit', 'free'
+    (run/arm).mkdir(parents=True)
+    audit.mkdir()
+    data = {split:tmp_path/f'{split}.csv' for split in ('train', 'val')}
+    for split, manifest in data.items():
+        manifest.write_text(f'id,input,target\n{split},a,b\n')
+    fingerprints = {split:file_hash(manifest) for split, manifest in data.items()}
+    (audit/'initialization.json').write_text(json.dumps({
+        'backbone_sha256':'backbone', 'candidate_manifest_sha256':fingerprints,
+    }))
+    (run/'protocol.json').write_text(json.dumps({
+        'parameters':{'epochs':100, 'seed':42, 'batch':1}, 'weights_sha256':'backbone',
+        'train_sha256':fingerprints['train'], 'val_sha256':fingerprints['val'],
+        'train_ids':['train'], 'val_ids':['val'],
+    }))
+    (run/'COMPLETE').write_text(arm)
+    history = [dict(arm=arm, epoch=epoch, val={'psnr':-abs(epoch-81), 'ssim':.8})
+               for epoch in range(1,101)]
+    (run/arm/'epochs.jsonl').write_text('\n'.join(map(json.dumps, history)))
+    config = {'student':{'architecture':'backbone_fusion'}, 'epochs':100, 'evaluation_resize':256,
+              'seed':42, 'batch_size':1, 'data':{key:str(path) for key, path in data.items()}}
+    best, last = run/arm/'best.pt', run/arm/'last.pt'
+    def write(path, epoch):
+        torch.save(dict(**history[epoch-1], config=config, backbone_sha256='backbone'), path)
+    write(best, 81)
+    write(last, 100)
+    assert verify_checkpoint(run, arm, audit) == (best, 81)
+    write(best, 100)
+    with pytest.raises(ValueError, match='best validation epoch'):
+        verify_checkpoint(run, arm, audit)
+    write(best, 81)
+    write(last, 99)
+    with pytest.raises(ValueError, match='final checkpoint'):
+        verify_checkpoint(run, arm, audit)

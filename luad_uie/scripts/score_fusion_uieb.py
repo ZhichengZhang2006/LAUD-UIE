@@ -2,6 +2,7 @@
 import argparse
 import csv
 import json
+from math import isfinite
 from pathlib import Path
 
 from ..runtime import file_hash
@@ -13,11 +14,15 @@ def verify_checkpoint(run, arm, audit_dir):
     if arm not in (run / 'COMPLETE').read_text().split():
         raise ValueError('Requested arm is incomplete')
     protocol = json.loads((run / 'protocol.json').read_text())
-    budget = protocol['parameters']['epochs']
-    history = [json.loads(line)['epoch'] for line in (run / arm / 'epochs.jsonl').read_text().splitlines()]
-    if (budget < 100 or protocol['parameters'].get('smoke_test')
-            or history != list(range(1, budget + 1))):
+    parameters = protocol['parameters']
+    budget = parameters['epochs']
+    history = [json.loads(line) for line in (run / arm / 'epochs.jsonl').read_text().splitlines()]
+    if (budget < 100 or parameters.get('smoke_test')
+            or [row['epoch'] for row in history] != list(range(1, budget + 1))):
         raise ValueError('Formal scoring requires the full declared budget of at least 100 epochs')
+    if any(row['arm'] != arm or not all(isfinite(row['val'][metric]) for metric in ('psnr', 'ssim'))
+           for row in history):
+        raise ValueError('Unexpected arm or non-finite validation score in UIEB history')
     audit = json.loads((audit_dir / 'initialization.json').read_text())
     checkpoint = run / arm / 'best.pt'
     state = torch.load(checkpoint, weights_only=True, map_location='cpu')
@@ -25,6 +30,16 @@ def verify_checkpoint(run, arm, audit_dir):
             or state['backbone_sha256'] != audit['backbone_sha256']
             or protocol['weights_sha256'] != state['backbone_sha256']):
         raise ValueError('Unexpected model or pretraining source')
+    best = max(history, key=lambda row: row['val']['psnr'])
+    if state['epoch'] != best['epoch'] or state['val'] != best['val']:
+        raise ValueError('The selected UIEB checkpoint is not the recorded best validation epoch')
+    last = torch.load(run / arm / 'last.pt', weights_only=True, map_location='cpu')
+    if (last['arm'] != arm or last['epoch'] != budget or last['val'] != history[-1]['val']
+            or last['config'] != state['config'] or last['backbone_sha256'] != state['backbone_sha256']
+            or state['config']['epochs'] != budget or state['config']['evaluation_resize'] != 256
+            or state['config']['seed'] != parameters['seed']
+            or state['config']['batch_size'] != parameters['batch']):
+        raise ValueError('UIEB final checkpoint disagrees with the declared training protocol')
     for split in ('train', 'val'):
         manifest = Path(state['config']['data'][split])
         digest = file_hash(manifest)
