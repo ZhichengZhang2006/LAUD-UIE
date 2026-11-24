@@ -25,8 +25,16 @@ CONTRASTS = (
     ('fitted_free_head', 'fitted/free', 'standard/free'),
     ('fitted_centered_head', 'fitted/centered', 'standard/centered'),
 )
-METRICS = ('psnr', 'ssim', 'ordinal_violation_rate')
-LOWER_IS_BETTER = {'ordinal_violation_rate'}
+METRICS = ('psnr', 'ssim', 'ordinal_violation_rate', 'rgb_offset_mse', 'rgb_spatial_mse')
+LOWER_IS_BETTER = {'ordinal_violation_rate', 'rgb_offset_mse', 'rgb_spatial_mse'}
+
+
+def rgb_error_components(prediction, target):
+    """Partition per-image MSE into global offset and centered spatial error."""
+    error = prediction - target
+    offset = error.mean(dim=(-2, -1), keepdim=True)
+    return {'rgb_offset_mse':offset.square().mean(dim=(1, 2, 3)),
+            'rgb_spatial_mse':(error-offset).square().mean(dim=(1, 2, 3))}
 
 
 def paired_statistics(candidate, baseline, indices, metric):
@@ -56,6 +64,7 @@ def score_arm(checkpoint, expected, dataset):
         prediction = model(x)
         values = metrics(prediction, y)
         values.update(structure_metrics(prediction, y, x))
+        values.update(rgb_error_components(prediction, y))
         measurements.append(dict(id=batch['id'][0], **{key:values[key].item() for key in METRICS}))
     for key in ('psnr', 'ssim'):
         if abs(np.mean([row[key] for row in measurements]) - expected[key]) > .001:
@@ -86,10 +95,14 @@ def run(root, output):
             metric:paired_statistics([row[metric] for row in measurements[candidate]],
                                      [row[metric] for row in measurements[baseline]], indices, metric)
             for metric in METRICS})
+    kd_weights = {}
+    for arm in ('fixed', 'utility'):
+        history = (root / 'standard' / arm / 'epochs.jsonl').read_text().splitlines()
+        kd_weights[arm] = [json.loads(line)['kd_weights'] for line in history]
     report = dict(dataset='LSUI validation', checkpoint_epoch=100, seed=42, bootstrap_draws=5000,
                   val_manifest_sha256=verified['val_manifest_sha256'],
                   checkpoints={key:value['last']['sha256'] for key, value in verified['arms'].items()},
-                  contrasts=contrasts, per_image=measurements)
+                  contrasts=contrasts, per_image=measurements, training_kd_weights_by_epoch=kd_weights)
     with output.open('x', encoding='utf-8') as stream:
         json.dump(report, stream, indent=2, allow_nan=False)
 
