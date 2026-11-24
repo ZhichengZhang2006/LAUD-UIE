@@ -51,3 +51,17 @@ UIEB 候选须通过完整训练预算及数据审计，之后由 `python -m lua
 普通前向的中位和 P90 延迟为 70.51 和 77.11 ms。图重放为 71.35 和 80.87 ms。逐轮配对时，图重放在 60 轮中有 33 轮较快，配对差的中位节省 0.80 ms。捕获用时 0.16 秒，PyTorch 额外保留约 318 MiB 显存。这次共享 GPU 试验未观察到稳定的延迟改善，正式测量使用普通合批实现。见 [原始测量](fusion_cuda_graph_epoch100.json)。
 
 复现命令为 `python -m luad_uie.scripts.benchmark_fusion_cuda_graph FORMAL100_ROOT OUTPUT_JSON`。
+
+### BF16 混合精度部署试验
+
+相同第 100 轮 LSUI 权重、两方向合批、128 张验证图。比较 FP32、整网 BF16 自动混合精度和仅主干 BF16。后者以 FP32 执行 RGB 残差头。输入、输出质量计算均为 FP32。共享 A100 每种模式预热 10 次，交错计时 60 次。
+
+| 模式 | 中位延迟 ms | 前向额外峰值 MiB | 平均 PSNR 差 dB | 最差单图 PSNR 差 dB | 平均 SSIM 差 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| FP32 | 69.07 | 283.1 | 0 | 0 | 0 |
+| 整网 BF16 | 55.91 | 161.7 | -0.00194 | -0.36570 | -0.0000944 |
+| 主干 BF16 + FP32 RGB 头 | 55.99 | 161.7 | -0.00185 | -0.35229 | -0.0000771 |
+
+仅主干 BF16 的运行时间较 FP32 低 18.9%，额外峰值显存低 42.9%。FP32 输出头只小幅减轻最差样本的 PSNR 下降。混合精度是可选部署配置，正式质量与工作簿效率比较采用 FP32。见 [逐图结果与原始计时](fusion_precision_epoch100.json)。
+
+复现命令为 `python -m luad_uie.scripts.benchmark_fusion_precision FORMAL100_ROOT OUTPUT_JSON`。
