@@ -1,0 +1,40 @@
+{
+  "lsui": {
+    "pairs": 428,
+    "mismatched_native_size": [],
+    "audited_manifest_sha256": "90e9b6b55c4f0c0335741a1661e097b6656c1a29ce665c354929bc414f7e2734",
+    "reference_manifest_sha256": "2811158e47e7eebd42bfa62ca5777a20259c19889947dee95db382211082df46",
+    "available_test_code_sha256": "fd6821e4bd465f76e45100b9302606e94d94969b974bc06377c1e59977bd029f",
+    "available_loader_code_sha256": "2b505ab1038dc9282ee83444e2f46c14de2e2e3e87949d015263c477d680fb88"
+  },
+  "no_reference": {
+    "CH60": {
+      "total": 60,
+      "historical_nonsquare": 60,
+      "distinct_historical_shapes": [
+        [
+          340,
+          256
+        ],
+        [
+          360,
+          256
+        ],
+        [
+          452,
+          256
+        ]
+      ]
+    },
+    "U45": {
+      "total": 45,
+      "historical_nonsquare": 0,
+      "distinct_historical_shapes": [
+        [
+          256,
+          256
+        ]
+      ]
+    }
+  }
+}

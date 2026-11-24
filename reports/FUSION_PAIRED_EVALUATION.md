@@ -25,4 +25,8 @@ python -m luad_uie.scripts.score_fusion_paired formal100 SUITE/ARM \
 
 `summarize_fusion_workbook` 读取有参考汇总、UIEB 无参考汇总及同一份工作簿参照。可通过 `--protocol-evidence` 提供以 `LSUI/PSNR` 或 `CH60_U45/NIQE` 等指标键映射到原始协议来源说明的 JSON 文件。只有样本完整且有口径核验记录的数值差才计入正式胜负。若已确认胜出不足 8 项且仍可能达到门槛，整体结论保留为待核验。
 
-Sheet2 的 CH60 数值与历史 `no_reference_results/CH60_from_UIEB.txt` 一致。该记录对应 UIEB 的 NoHead 检查点。U45 数值与 `no_reference_results/CHECKPOINT_SWEEP_RESULTS.md` 的完整 UIEB 检查点记录一致。原无参考入口 `test_nr.py` 通过 `utils/dataset.py` 将短边缩至 256，保留纵横比并裁至 4 的倍数。当前候选使用固定 256×256。这个尺寸差异适用于两个无参考数据集，应将它们与工作簿的差值标为数值对照，暂不计作同口径胜负。
+Sheet2 的 CH60 数值与历史 `no_reference_results/CH60_from_UIEB.txt` 一致。该记录对应 UIEB 的 NoHead 检查点。U45 数值与 `no_reference_results/CHECKPOINT_SWEEP_RESULTS.md` 的完整 UIEB 检查点记录一致。原无参考入口 `test_nr.py` 通过 `utils/dataset.py` 将短边缩至 256，保留纵横比并裁至 4 的倍数。
+
+用通过指纹核验的原图逐张复算尺寸。U45 的 45 张图按历史规则均为 256×256，和候选尺寸一致。CH60 的 60 张图均为非正方形，历史宽高包括 340×256、360×256 和 452×256。候选固定输入 256×256。CH60 与工作簿作数值对照。等权汇总的五项无参考指标仍有 CH60 的几何口径差异。
+
+LSUI 的历史入口启用 256×256 双线性缩放。现有历史目录按加载器规则排序的 428 对输入和参考，与通过审计的清单逐对路径和文件指纹一致。428 对均具有相同的输入与参考原生尺寸，历史预对齐缩放分支在该目录上不触发。此核验确认了已归档加载规则与当前数据的兼容性，正式胜率仍需核对工作簿出分时的度量版本。图像清单及历史脚本指纹见 [口径核验](workbook_geometry_audit.json)。
