@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from ..datasets import PairedDataset, read_manifest, validate_splits
 from ..losses import ReconstructionLoss
 from ..losses.component_distillation import component_distillation
-from ..losses.ordinal_structure import ordinal_structure, structure_metrics
+from ..losses.ordinal_structure import full_gradient, ordinal_structure, structure_metrics
 from ..models.backbone_fusion import BackboneFusion
 from ..models.scene_initialization import fit_components, initialize_head
 from ..runtime import append_json, file_hash, seed_all
@@ -19,6 +19,7 @@ from .train_matched_quality import atomic_checkpoint, subset
 
 
 ARMS = ('free', 'centered', 'ordinal', 'fixed', 'utility')
+GRADIENT_CONTROL = 'gradient'
 BACKBONE_SHA256 = 'dc43cb10dd8fa4940b4f12eb0a315fe8d1c6c05f733bdd6da137c5be234239fc'
 
 
@@ -133,6 +134,8 @@ def train_arm(arm, args, fit, validation, provenance):
             loss = reconstruction(prediction, y)
             if arm in ('ordinal', 'fixed', 'utility'):
                 loss = loss + .2 * ordinal_structure(prediction, x, y)
+            elif arm == GRADIENT_CONTROL:
+                loss = loss + .2 * full_gradient(prediction, y)
             if teacher is not None:
                 with torch.no_grad():
                     taught = teacher(x)
@@ -170,7 +173,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('train', 'val', 'weights', 'output'):
         parser.add_argument(name, type=Path)
-    parser.add_argument('--arms', nargs='+', choices=ARMS, default=list(ARMS))
+    parser.add_argument('--arms', nargs='+', choices=(*ARMS, GRADIENT_CONTROL), default=list(ARMS))
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--smoke-test', action='store_true',
                         help='Allow a shorter engineering check, ineligible for performance comparison')

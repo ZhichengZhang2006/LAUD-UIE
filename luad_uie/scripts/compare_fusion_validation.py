@@ -12,7 +12,7 @@ from ..losses import metrics
 from ..losses.ordinal_structure import structure_metrics
 from ..models.selective_student import build_student
 from ..runtime import file_hash, seed_all
-from .summarize_fusion_100 import collect
+from .summarize_fusion_100 import checked_checkpoints, collect
 
 
 CONTRASTS = (
@@ -72,7 +72,20 @@ def score_arm(checkpoint, expected, dataset):
     return measurements
 
 
-def run(root, output):
+def verify_gradient_control(directory, standard):
+    if (directory / 'COMPLETE').read_text().split() != ['gradient']:
+        raise ValueError('The gradient control must finish before comparison')
+    protocol = json.loads((directory / 'protocol.json').read_text())
+    for key in ('weights_sha256', 'train_sha256', 'val_sha256', 'train_ids', 'val_ids', 'head_fit_ids'):
+        if protocol[key] != standard[key]:
+            raise ValueError(f'Gradient control differs in {key}')
+    for key in ('batch', 'epochs', 'seed', 'head_fit_images', 'train_limit', 'val_limit', 'smoke_test'):
+        if protocol['parameters'][key] != standard['parameters'][key]:
+            raise ValueError(f'Gradient control differs in {key}')
+    return checked_checkpoints(directory / 'gradient')
+
+
+def run(root, output, gradient_control=None):
     verified = collect(root)
     protocol = json.loads((root / 'standard/protocol.json').read_text())
     manifest = Path(protocol['parameters']['val'])
@@ -82,15 +95,22 @@ def run(root, output):
     ids = protocol['val_ids']
     dataset = PairedDataset([lookup[i] for i in ids], resize=256)
     seed_all(42)
+    selected = {arm:(root / arm / 'last.pt', evidence['last']) for arm, evidence in verified['arms'].items()}
+    specifications = CONTRASTS
+    if gradient_control is not None:
+        control = verify_gradient_control(gradient_control, protocol)
+        selected['control/gradient'] = gradient_control / 'gradient/last.pt', control['last']
+        specifications += (('gradient', 'control/gradient', 'standard/centered'),
+                           ('ordinal_vs_gradient', 'standard/ordinal', 'control/gradient'))
     measurements = {}
-    for arm, evidence in verified['arms'].items():
-        values = score_arm(root / arm / 'last.pt', evidence['last'], dataset)
+    for arm, (checkpoint, evidence) in selected.items():
+        values = score_arm(checkpoint, evidence, dataset)
         if [row['id'] for row in values] != ids:
             raise ValueError(f'{arm}: validation order changed')
         measurements[arm] = values
     indices = np.random.default_rng(42).integers(0, len(ids), size=(5000, len(ids)))
     contrasts = {}
-    for name, candidate, baseline in CONTRASTS:
+    for name, candidate, baseline in specifications:
         contrasts[name] = dict(candidate=candidate, baseline=baseline, metrics={
             metric:paired_statistics([row[metric] for row in measurements[candidate]],
                                      [row[metric] for row in measurements[baseline]], indices, metric)
@@ -101,7 +121,7 @@ def run(root, output):
         kd_weights[arm] = [json.loads(line)['kd_weights'] for line in history]
     report = dict(dataset='LSUI validation', checkpoint_epoch=100, seed=42, bootstrap_draws=5000,
                   val_manifest_sha256=verified['val_manifest_sha256'],
-                  checkpoints={key:value['last']['sha256'] for key, value in verified['arms'].items()},
+                  checkpoints={key:value[1]['sha256'] for key, value in selected.items()},
                   contrasts=contrasts, per_image=measurements, training_kd_weights_by_epoch=kd_weights)
     with output.open('x', encoding='utf-8') as stream:
         json.dump(report, stream, indent=2, allow_nan=False)
@@ -111,5 +131,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('root', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--gradient-control', type=Path)
     args = parser.parse_args()
-    run(args.root.resolve(), args.output.resolve())
+    run(args.root.resolve(), args.output.resolve(), args.gradient_control)
