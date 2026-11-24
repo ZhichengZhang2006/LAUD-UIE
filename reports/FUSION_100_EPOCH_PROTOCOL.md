@@ -31,3 +31,5 @@ school-gpu2 在 `/home/user/luad_fusion_1_0/formal100` 依次执行七个 LSUI �
 每项报告逐图差值的均值、中位数、改善数和平局数。用 5,000 次图像配对重采样计算逐项 95% 区间。区间只反映固定权重与当前验证图上的样本差异，单种子重复和独立测试仍是确认泛化收益所需的证据。交叉组的主比较使用第 100 轮，验证 PSNR 最佳权重另用于冻结候选。
 
 执行命令为 `python -m luad_uie.scripts.compare_fusion_validation formal100 validation_contrasts.json`。
+
+结构对照可追加 `--with-sift`，加入逐图关键点数与两种固定旋转缩放下的一对一匹配数。沿用 ± 方向的固定变换（5°、0.95 倍与 −10°、1.05 倍）、8 像素边界与 3 像素匹配半径。每次变换也记录有效匹配分母，便于检查候选是否只增加了重复或不稳定的检测。使用 `--gradient-control ../gradient_control_stage/control` 可将跑满 100 轮的梯度对照一起分析。这里使用 LSUI 开发数据，不参与 DUO 或 CH60 正式验收统计。

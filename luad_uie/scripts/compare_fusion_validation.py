@@ -26,6 +26,7 @@ CONTRASTS = (
     ('fitted_centered_head', 'fitted/centered', 'standard/centered'),
 )
 METRICS = ('psnr', 'ssim', 'ordinal_violation_rate', 'rgb_offset_mse', 'rgb_spatial_mse')
+SIFT_METRICS = ('sift_keypoints', 'sift_matched_points')
 LOWER_IS_BETTER = {'ordinal_violation_rate', 'rgb_offset_mse', 'rgb_spatial_mse'}
 
 
@@ -51,13 +52,21 @@ def paired_statistics(candidate, baseline, indices, metric):
 
 
 @torch.inference_mode()
-def score_arm(checkpoint, expected, dataset):
+def score_arm(checkpoint, expected, dataset, with_sift=False):
     if file_hash(checkpoint) != expected['sha256']:
         raise ValueError(f'Changed checkpoint: {checkpoint}')
     saved = torch.load(checkpoint, map_location='cpu', weights_only=True)
     model = build_student(saved['config']['student'])
     model.load_state_dict(saved['student'])
     model.cuda().eval()
+    if with_sift:
+        import cv2
+        from .benchmark_duo_sift import SIZE, SIFT_TRANSFORMS, repeatability, sift_points, tensor_rgb
+
+        cv2.setNumThreads(1)
+        sift = cv2.SIFT_create()
+        transforms = [cv2.getRotationMatrix2D(((SIZE-1)/2, (SIZE-1)/2), angle, scale)
+                      for angle, scale in SIFT_TRANSFORMS]
     measurements = []
     for batch in DataLoader(dataset, batch_size=1, num_workers=2):
         x, y = batch['input'].cuda(), batch['target'].cuda()
@@ -65,7 +74,19 @@ def score_arm(checkpoint, expected, dataset):
         values = metrics(prediction, y)
         values.update(structure_metrics(prediction, y, x))
         values.update(rgb_error_components(prediction, y))
-        measurements.append(dict(id=batch['id'][0], **{key:values[key].item() for key in METRICS}))
+        row = dict(id=batch['id'][0], **{key:values[key].item() for key in METRICS})
+        if with_sift:
+            rgb = batch['input'][0].permute(1, 2, 0).mul(255).round().to(torch.uint8).contiguous().numpy()
+            count, points = sift_points(sift, prediction)
+            matches = []
+            for affine in transforms:
+                warped = cv2.warpAffine(rgb, affine, (SIZE, SIZE), flags=cv2.INTER_LINEAR,
+                                        borderMode=cv2.BORDER_REFLECT_101)
+                _, warped_points = sift_points(sift, model(tensor_rgb(warped)))
+                matches.append(repeatability(points, warped_points, affine))
+            row.update(sift_keypoints=count, sift_matched_points=sum(m['matches'] for m in matches),
+                       sift_transforms=matches)
+        measurements.append(row)
     for key in ('psnr', 'ssim'):
         if abs(np.mean([row[key] for row in measurements]) - expected[key]) > .001:
             raise ValueError(f'{checkpoint}: final validation {key} does not reproduce its log')
@@ -85,7 +106,7 @@ def verify_gradient_control(directory, standard):
     return checked_checkpoints(directory / 'gradient')
 
 
-def run(root, output, gradient_control=None):
+def run(root, output, gradient_control=None, with_sift=False):
     verified = collect(root)
     protocol = json.loads((root / 'standard/protocol.json').read_text())
     manifest = Path(protocol['parameters']['val'])
@@ -104,7 +125,7 @@ def run(root, output, gradient_control=None):
                            ('ordinal_vs_gradient', 'standard/ordinal', 'control/gradient'))
     measurements = {}
     for arm, (checkpoint, evidence) in selected.items():
-        values = score_arm(checkpoint, evidence, dataset)
+        values = score_arm(checkpoint, evidence, dataset, with_sift)
         if [row['id'] for row in values] != ids:
             raise ValueError(f'{arm}: validation order changed')
         measurements[arm] = values
@@ -114,7 +135,7 @@ def run(root, output, gradient_control=None):
         contrasts[name] = dict(candidate=candidate, baseline=baseline, metrics={
             metric:paired_statistics([row[metric] for row in measurements[candidate]],
                                      [row[metric] for row in measurements[baseline]], indices, metric)
-            for metric in METRICS})
+            for metric in METRICS + (SIFT_METRICS if with_sift else ())})
     kd_weights = {}
     for arm in ('fixed', 'utility'):
         history = (root / 'standard' / arm / 'epochs.jsonl').read_text().splitlines()
@@ -123,6 +144,12 @@ def run(root, output, gradient_control=None):
                   val_manifest_sha256=verified['val_manifest_sha256'],
                   checkpoints={key:value[1]['sha256'] for key, value in selected.items()},
                   contrasts=contrasts, per_image=measurements, training_kd_weights_by_epoch=kd_weights)
+    if with_sift:
+        from .benchmark_duo_sift import BORDER, SIFT_TRANSFORMS, TOLERANCE
+        import cv2
+
+        report['sift_protocol'] = dict(opencv=cv2.__version__, transforms=SIFT_TRANSFORMS,
+                                       border_px=BORDER, match_tolerance_px=TOLERANCE)
     with output.open('x', encoding='utf-8') as stream:
         json.dump(report, stream, indent=2, allow_nan=False)
 
@@ -132,5 +159,6 @@ if __name__ == '__main__':
     parser.add_argument('root', type=Path)
     parser.add_argument('output', type=Path)
     parser.add_argument('--gradient-control', type=Path)
+    parser.add_argument('--with-sift', action='store_true')
     args = parser.parse_args()
-    run(args.root.resolve(), args.output.resolve(), args.gradient_control)
+    run(args.root.resolve(), args.output.resolve(), args.gradient_control, args.with_sift)
